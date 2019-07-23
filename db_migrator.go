@@ -8,7 +8,7 @@ import (
 	"log"
 )
 
-func migrateToLocalDB(sqlitePath string, userId int) error {
+func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 	sqliteDB, err := sql.Open("sqlite3", sqlitePath)
 	if err != nil {
 		return fmt.Errorf("db migration: %v", err.Error())
