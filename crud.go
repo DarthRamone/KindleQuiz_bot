@@ -14,13 +14,12 @@ func getRandomWord(userId int) (*word, error) {
 		fmt.Printf("shit")
 		return nil, err
 	}
-	fmt.Printf("word_id: %d\n", wordId)
 
-	wordRow := db.QueryRow("SELECT word, stem, lang FROM words WHERE id=$1", wordId)
+	wordRow := db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
 
 	w := word{}
 	var langId int
-	err = wordRow.Scan(&w.word, &w.stem, &langId)
+	err = wordRow.Scan(&w.word, &w.stem, &langId, &w.id)
 	if err != nil {
 		return nil, fmt.Errorf("Random word row scan: %v", err.Error())
 	}
@@ -94,4 +93,40 @@ func getLanguages() ([]lang, error) {
 	}
 
 	return langs, nil
+}
+
+func writeAnswer(p *guessParam, r *guessResult) error {
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(""+
+		"INSERT INTO answers (word_id, user_id, correct, user_lang, guess)"+
+		"VALUES ($1, $2, $3, $4, $5)", p.word.id, p.user.id, r.correct(), p.user.currentLanguage.id, p.guess)
+
+	var field string
+	if r.correct() {
+		field = "correct_answers"
+	} else {
+		field = "incorrect_answers"
+	}
+
+	var queryStr = fmt.Sprintf("UPDATE user_words SET %s = %[1]s + 1 WHERE word_id = %d", field, p.word.id)
+
+	_, err = tx.Exec(queryStr, p.word.id)
+
+	fmt.Printf("%s\n", queryStr)
+
+	if err != nil {
+		return fmt.Errorf("write answer: %s", err.Error())
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil
+	}
+
+	return nil
 }
