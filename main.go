@@ -3,8 +3,10 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"github.com/bregydoc/gtranslate"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
+	"strings"
 )
 
 var db *sql.DB
@@ -25,7 +27,12 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	fmt.Printf("%s\n", word.word)
+	translated, err := translateWord(*word, "ru")
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+
+	fmt.Printf("%s = %s \n", word.word, translated)
 }
 
 func getRandomWord(userId int) (*word, error) {
@@ -49,3 +56,23 @@ func getRandomWord(userId int) (*word, error) {
 
 	return &w, nil
 }
+
+func translateWord(w word, lc string) (translated string, err error) {
+
+	translated, err = gtranslate.TranslateWithFromTo(
+		w.word,
+		gtranslate.FromTo{
+			From: w.lang,
+			To:   lc,
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return
+}
+
+//func guessWord(w, answer word, sl, dl string) bool, error {
+//
+//}
