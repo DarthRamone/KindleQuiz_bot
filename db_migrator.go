@@ -26,16 +26,9 @@ func migrateToLocalDB(sqlitePath string, userId int) error {
 		return fmt.Errorf("sqlite: querying words: %v", err.Error())
 	}
 
-	connStr := "user=postgres dbname=vocab port=32768 sslmode=disable"
-	postgreDB, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return fmt.Errorf("open postgre connection: %v", err.Error())
-	}
-	defer postgreDB.Close()
-
 	for rows.Next() {
 
-		tx, err := postgreDB.Begin()
+		tx, err := db.Begin()
 		if err != nil {
 			return fmt.Errorf("postgre tx begin: %v", err.Error())
 		}
