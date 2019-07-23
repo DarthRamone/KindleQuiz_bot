@@ -3,5 +3,5 @@ package main
 type word struct {
 	word string
 	stem string
-	lang string
+	lang *lang
 }

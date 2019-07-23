@@ -5,6 +5,7 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"log"
 )
 
 func migrateToLocalDB(sqlitePath string, userId int) error {
@@ -14,39 +15,65 @@ func migrateToLocalDB(sqlitePath string, userId int) error {
 	}
 	defer sqliteDB.Close()
 
-	var wordsCount int
-	count := sqliteDB.QueryRow("SELECT COUNT(*) FROM WORDS")
-	err = count.Scan(&wordsCount)
+	log.Println("get languages")
+	langs, err := getLanguages()
 	if err != nil {
-		return fmt.Errorf("sqlite: words count: %v", err.Error())
+		return fmt.Errorf("get languages: %v", err.Error())
+	}
+	langMap := make(map[string]int, len(langs))
+	for _, l := range langs {
+		langMap[l.code] = l.id
 	}
 
+	log.Println("Query words")
 	rows, err := sqliteDB.Query("SELECT word, stem, lang FROM WORDS")
 	if err != nil {
 		return fmt.Errorf("sqlite: querying words: %v", err.Error())
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 
-		tx, err := db.Begin()
-		if err != nil {
-			return fmt.Errorf("postgre tx begin: %v", err.Error())
-		}
+		log.Println("Words iter")
 
+		var lc string
 		w := word{}
-		err = rows.Scan(&w.word, &w.stem, &w.lang)
+		err = rows.Scan(&w.word, &w.stem, &lc)
 		if err != nil {
-			fmt.Errorf("sqlite: scanning word row: %v", err.Error())
+			fmt.Printf("sqlite: scanning word row: %v\n", err.Error())
 			continue
 		}
 
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("postgre tx begin: %v\n", err.Error())
+		}
+
 		//Trying to insert word with ignoring duplicate keys
-		row := tx.QueryRow("INSERT INTO words (word, stem, lang) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING id", w.word, w.stem, w.lang)
+
+		langId, ok := langMap[lc]
+		if !ok {
+			fmt.Printf("No such lang code found: %s", lc)
+			continue
+		}
+
+		log.Println("Insert word")
+		row := tx.QueryRow(""+
+			"INSERT INTO words (word, stem, lang) "+
+			"VALUES ($1, $2, $3) "+
+			"ON CONFLICT DO NOTHING RETURNING id", w.word, w.stem, langId)
+
 		var wordId int
 		err = row.Scan(&wordId)
 		if err != nil {
+			log.Println(err.Error())
+			log.Println("Query existing word id")
 			//If error happened, probably word with same key was already added, trying to get id
-			row = tx.QueryRow("SELECT id FROM words WHERE word=$1 AND stem=$2 AND lang=$3", w.word, w.stem, w.lang)
+			row = tx.QueryRow(""+
+				"SELECT id "+
+				"FROM words "+
+				"WHERE word=$1 AND stem=$2 AND lang=$3", w.word, w.stem, w.lang)
+
 			err = row.Scan(&wordId)
 			if err != nil {
 				fmt.Printf(err.Error())
@@ -54,12 +81,20 @@ func migrateToLocalDB(sqlitePath string, userId int) error {
 			}
 		}
 
-		_, err = tx.Exec("INSERT INTO users (id) VALUES ($1) ON CONFLICT DO NOTHING", userId)
+		log.Println("Insert user")
+		_, err = tx.Exec(""+
+			"INSERT INTO users (id) "+
+			"VALUES ($1) "+
+			"ON CONFLICT DO NOTHING", userId)
 		if err != nil {
 			return fmt.Errorf("postgre: inserting user: %v", err.Error())
 		}
 
-		_, err = tx.Exec("INSERT INTO user_words (user_id, word_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", userId, wordId)
+		log.Println("Insert user word")
+		_, err = tx.Exec(""+
+			"INSERT INTO user_words (user_id, word_id) "+
+			"VALUES ($1, $2) "+
+			"ON CONFLICT DO NOTHING", userId, wordId)
 		if err != nil {
 			return fmt.Errorf("postgre: inserting user_word: %v", err.Error())
 		}
