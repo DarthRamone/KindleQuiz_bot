@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 )
@@ -38,8 +39,9 @@ func getUser(id int) (*user, error) {
 	u := user{}
 	var langId int
 	err := userRow.Scan(&u.id, &langId)
+
 	if err != nil {
-		return nil, fmt.Errorf("Get user: %v", err.Error())
+		return nil, err
 	}
 
 	l, err := getLang(langId)
@@ -95,7 +97,7 @@ func getLanguages() ([]lang, error) {
 	return langs, nil
 }
 
-func writeAnswer(p *guessParam, r *guessResult) error {
+func writeAnswer(p *guessParams, r *guessResult) error {
 
 	tx, err := db.Begin()
 	if err != nil {

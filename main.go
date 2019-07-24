@@ -4,12 +4,9 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
-	"github.com/DarthRamone/gtranslate"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
-	"strings"
-	"time"
 )
 
 var db *sql.DB
@@ -51,7 +48,7 @@ func main() {
 
 			log.Printf(user.currentLanguage.code)
 
-			param := &guessParam{w, text, user}
+			param := &guessParams{w, text, user}
 
 			res, err := guessWord(param)
 			if err != nil {
@@ -71,58 +68,4 @@ func main() {
 			}
 		}
 	}
-}
-
-type guessResult struct {
-	guess       string
-	translation string
-}
-
-func (t *guessResult) correct() bool {
-	return compareWords(t.guess, t.translation)
-}
-
-func translateWord(w word, dst *lang) (string, error) {
-
-	translated, err := gtranslate.TranslateWithParams(
-		w.word,
-		gtranslate.TranslationParams{
-			From:  w.lang.code,
-			To:    dst.code,
-			Delay: time.Second,
-			Tries: 5,
-		},
-	)
-
-	if err != nil {
-		return "", err
-	}
-
-	return translated, nil
-}
-
-type guessParam struct {
-	word  word
-	guess string
-	user  *user
-}
-
-func guessWord(p *guessParam) (*guessResult, error) {
-
-	translated, err := translateWord(p.word, p.user.currentLanguage)
-	if err != nil {
-		return nil, err
-	}
-
-	res := guessResult{p.guess, translated}
-
-	return &res, nil
-}
-
-func compareWords(w1, w2 string) bool {
-
-	s1 := strings.ToLower(strings.Trim(w1, " "))
-	s2 := strings.ToLower(strings.Trim(w2, " "))
-
-	return s1 == s2
 }
