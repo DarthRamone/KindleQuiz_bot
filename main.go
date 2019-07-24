@@ -40,7 +40,7 @@ func main() {
 
 	text := reader.Text()
 
-	guessWord(user, text)
+	guessWord(*user, text)
 
 	time.Sleep(time.Second * 5)
 

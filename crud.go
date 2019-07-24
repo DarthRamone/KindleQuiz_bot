@@ -5,6 +5,43 @@ import (
 	"log"
 )
 
+const (
+	defaultLanguageId = 2 //English
+)
+
+func updateUserLang(userId, langId int) error {
+	_, err := db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func createUser(userId int) (*user, error) {
+
+	lang, err := getLang(defaultLanguageId)
+	if err != nil {
+		return nil, err
+	}
+
+	u := user{userId, lang}
+
+	_, err = db.Exec("INSERT INTO users (id, current_lang) VALUES ($1, $2) ON CONFLICT DO NOTHING", userId, defaultLanguageId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+func deleteLastWord(userId int) error {
+	_, err := db.Exec("DELETE FROM questions WHERE user_id=$1", userId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func setLastWord(userId int, w word) error {
 	_, err := db.Exec("INSERT INTO questions (user_id, word_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET word_id=$2", userId, w.id)
 	if err != nil {

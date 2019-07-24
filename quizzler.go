@@ -54,7 +54,7 @@ func (r guessRequest) ask() {
 type guessParams struct {
 	word  word
 	guess string
-	user  *user
+	user  user
 }
 
 type resultTeller interface {
@@ -76,8 +76,6 @@ func (t *guessResult) correct() bool {
 
 var results = make(chan resultTeller)
 var requests = make(chan asker)
-
-//var stopListen = make(chan struct{})
 
 func quizStartListen() {
 	go func() {
@@ -115,7 +113,7 @@ func requestWord(u user) {
 	}(u)
 }
 
-func guessWord(u *user, guess string) {
+func guessWord(u user, guess string) {
 	go func() {
 
 		word, err := getLastWord(u.id)
@@ -129,6 +127,8 @@ func guessWord(u *user, guess string) {
 			u.reportError(err)
 			return
 		}
+
+		err = deleteLastWord(u.id)
 
 		p := guessParams{*word, guess, u}
 
