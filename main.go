@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	_ "github.com/mattn/go-sqlite3"
@@ -11,7 +12,11 @@ import (
 var db *sql.DB
 var bot *tgbotapi.BotAPI
 
+var token = flag.String("token", "", "telegram API bot token")
+
 func main() {
+
+	flag.Parse()
 
 	var err error
 
@@ -40,7 +45,7 @@ func main() {
 	quizStartListen()
 
 	//Initialize telegram bot
-	bot, err = tgbotapi.NewBotAPI("***REMOVED***")
+	bot, err = tgbotapi.NewBotAPI(*token)
 	if err != nil {
 		log.Panic(err)
 	}
