@@ -1,10 +1,28 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 )
+
+func setLastWord(userId int, w word) error {
+	_, err := db.Exec("INSERT INTO questions (user_id, word_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET word_id=$2", userId, w.id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func getLastWord(userId int) (*word, error) {
+	row := db.QueryRow("SELECT word_id FROM questions WHERE user_id=$1", userId)
+	var wordId int
+	err := row.Scan(&wordId)
+	if err != nil {
+		return nil, err
+	}
+
+	return getWord(wordId)
+}
 
 func getRandomWord(userId int) (*word, error) {
 	var wordId int
@@ -16,11 +34,15 @@ func getRandomWord(userId int) (*word, error) {
 		return nil, err
 	}
 
+	return getWord(wordId)
+}
+
+func getWord(wordId int) (*word, error) {
 	wordRow := db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
 
 	w := word{}
 	var langId int
-	err = wordRow.Scan(&w.word, &w.stem, &langId, &w.id)
+	err := wordRow.Scan(&w.word, &w.stem, &langId, &w.id)
 	if err != nil {
 		return nil, fmt.Errorf("Random word row scan: %v", err.Error())
 	}

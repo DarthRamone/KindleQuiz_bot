@@ -1,10 +1,56 @@
 package main
 
 import (
+	"fmt"
 	"github.com/DarthRamone/gtranslate"
+	"io"
+	"log"
+	"os"
 	"strings"
 	"time"
 )
+
+type quizPlayer interface {
+	io.Writer
+	ask(w word)
+	tellResult(r guessResult)
+	error(err error)
+}
+
+func (u user) ask(w word) {
+	_, _ = fmt.Fprintf(u, "Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
+}
+
+func (u user) tellResult(r guessResult) {
+
+	if r.correct() {
+		_, _ = fmt.Fprintf(u, "Your answer is correct;\n")
+	} else {
+		_, _ = fmt.Fprintf(u, "Your answer is incorrect. Correct answer: %s\n", r.translation)
+	}
+
+}
+
+func (u user) error(err error) {
+	_, _ = fmt.Fprintf(u, err.Error())
+}
+
+func (u user) Write(p []byte) (int, error) {
+	return os.Stdin.Write(p)
+}
+
+type asker interface {
+	ask()
+}
+
+type guessRequest struct {
+	user quizPlayer
+	word word
+}
+
+func (r guessRequest) ask() {
+	r.user.ask(r.word)
+}
 
 type guessParams struct {
 	word  word
@@ -12,41 +58,82 @@ type guessParams struct {
 	user  *user
 }
 
+type resultTeller interface {
+	tellResult()
+}
+
 type guessResult struct {
-	params      *guessParams
+	params      guessParams
 	translation string
+}
+
+func (g guessResult) tellResult() {
+	g.params.user.tellResult(g)
 }
 
 func (t *guessResult) correct() bool {
 	return compareWords(t.params.guess, t.translation)
 }
 
-//var guesses = make(chan guessParams)
-//var results = make(chan guessResult)
+var results = make(chan resultTeller)
+var requests = make(chan asker)
+
 //var stopListen = make(chan struct{})
-//
-//func startListen() {
-//	go func() {
-//		for {
-//			select {
-//			case g := <- guesses:
-//
-//			case r := <- results:
-//			}
-//		}
-//	}()
-//}
 
-func guessWord(p *guessParams) (*guessResult, error) {
+func quizStartListen() {
+	go func() {
+		for {
+			select {
+			case req := <-requests:
+				go func() {
+					req.ask()
+				}()
+			case res := <-results:
+				go func() {
+					res.tellResult()
+				}()
+			}
+		}
+	}()
+}
 
-	translated, err := translateWord(p.word, p.user.currentLanguage)
-	if err != nil {
-		return nil, err
-	}
+func requestWord(u user) {
+	go func(p quizPlayer) {
+		w, err := getRandomWord(u.id)
+		if err != nil {
+			return //TODO: error handler
+		}
 
-	res := guessResult{p, translated}
+		err = setLastWord(u.id, *w)
+		if err != nil {
+			log.Fatalf(err.Error())
+			return //TODO: error handler
+		}
 
-	return &res, nil
+		r := guessRequest{p, *w}
+		requests <- r
+	}(u)
+}
+
+func guessWord(u *user, guess string) {
+	go func() {
+
+		word, err := getLastWord(u.id)
+		if err != nil {
+			log.Fatalf(err.Error())
+			return //TODO error handler
+		}
+
+		translated, err := translateWord(*word, u.currentLanguage)
+		if err != nil {
+			log.Fatalf(err.Error())
+			return //TODO: error handler
+		}
+
+		p := guessParams{*word, guess, u}
+
+		results <- guessResult{p, translated}
+	}()
 }
 
 func translateWord(w word, dst *lang) (string, error) {

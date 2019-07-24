@@ -3,10 +3,10 @@ package main
 import (
 	"bufio"
 	"database/sql"
-	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
+	"time"
 )
 
 var db *sql.DB
@@ -23,49 +23,26 @@ func main() {
 	}
 	defer db.Close()
 
-	words := make(chan word)
-	go func() {
-		for i := 0; i < 20; i++ {
-			word, err := getRandomWord(0)
-			if err != nil {
-				log.Println(err.Error())
-				continue
-			}
-			words <- *word
-		}
-	}()
-
 	user, err := getUser(0)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
 
+	quizStartListen()
+
+	requestWord(*user)
+
+	time.Sleep(time.Second * 2)
+
 	reader := bufio.NewScanner(os.Stdin)
-	for w := range words {
-		fmt.Printf("Word is: %s; Lang: %s\n", w.word, w.lang.english_name)
-		if reader.Scan() {
-			text := reader.Text()
 
-			log.Printf(user.currentLanguage.code)
+	reader.Scan()
 
-			param := &guessParams{w, text, user}
+	text := reader.Text()
 
-			res, err := guessWord(param)
-			if err != nil {
-				log.Printf("Translation error: %v\n", err.Error())
-			}
+	guessWord(user, text)
 
-			if res.correct() {
-				fmt.Println("Your answer is correct")
-			} else {
-				fmt.Printf("Your answer is incorrect; Correct answer is: %s\n", res.translation)
-			}
+	time.Sleep(time.Second * 5)
 
-			err = writeAnswer(param, res)
-
-			if err != nil {
-				log.Printf(err.Error())
-			}
-		}
-	}
+	println(text)
 }
