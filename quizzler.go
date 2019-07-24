@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -39,7 +40,7 @@ func (u user) Write(p []byte) (int, error) {
 	chatId := int64(u.id)
 	log.Printf("chatId: %d\n", chatId)
 	msg := tgbotapi.NewMessage(chatId, string(p))
-	//msg.ReplyToMessageID = update.Message.MessageID
+
 	_, err := bot.Send(msg) //TODO: error handling maybe
 
 	if err != nil {
@@ -111,6 +112,12 @@ func requestWord(u user) {
 		log.Println("request word")
 
 		w, err := getRandomWord(u.id)
+
+		if err == sql.ErrNoRows {
+			u.reportError(fmt.Errorf("No words found. Please run /upload and follow instructions"))
+			return
+		}
+
 		if err != nil {
 			log.Println("report error: random word")
 			u.reportError(err)
@@ -127,6 +134,11 @@ func requestWord(u user) {
 		log.Println("send request")
 		r := guessRequest{p, *w}
 		requests <- r
+
+		err = updateUserState(u.id, waitingAnswer)
+		if err != nil {
+			//TODO: what?
+		}
 	}(u)
 }
 
@@ -148,8 +160,18 @@ func guessWord(u user, guess string) {
 		err = deleteLastWord(u.id)
 
 		p := guessParams{*word, guess, u}
+		r := guessResult{p, translated}
+		results <- r
 
-		results <- guessResult{p, translated}
+		err = writeAnswer(r)
+		if err != nil {
+			log.Printf("Failed to write answer: %v\n", err.Error())
+		}
+
+		err = updateUserState(u.id, readyForQuestion)
+		if err != nil {
+			//TODO: what?
+		}
 	}()
 }
 

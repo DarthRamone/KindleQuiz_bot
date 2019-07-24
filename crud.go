@@ -14,6 +14,7 @@ const (
 	waitingAnswer
 	readyForQuestion
 	migrationInProgress
+	awaitingLanguage
 )
 
 func getAllUserIds() ([]int, error) {
@@ -66,7 +67,7 @@ func createUser(userId int) (*user, error) {
 		return nil, err
 	}
 
-	u := user{userId, awaitingUpload, lang}
+	u := user{userId, readyForQuestion, lang}
 
 	_, err = db.Exec("INSERT INTO users (id, current_lang) VALUES ($1, $2) ON CONFLICT DO NOTHING", userId, defaultLanguageId)
 	if err != nil {
@@ -139,7 +140,7 @@ func getUser(id int) (*user, error) {
 	userRow := db.QueryRow("SELECT * FROM users WHERE id=$1", id)
 	u := user{}
 	var langId int
-	err := userRow.Scan(&u.id, &u.currentState, &langId)
+	err := userRow.Scan(&u.id, &langId, &u.currentState)
 
 	if err != nil {
 		return nil, err
@@ -198,7 +199,18 @@ func getLanguages() ([]lang, error) {
 	return langs, nil
 }
 
-func writeAnswer(p *guessParams, r *guessResult) error {
+func getLanguageWithCode(code string) (*lang, error) {
+	l := lang{}
+	err := db.QueryRow("SELECT * FROM languages WHERE code=$1", code).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+	if err != nil {
+		return nil, fmt.Errorf("lang with code: %v", err.Error())
+	}
+	return &l, nil
+}
+
+func writeAnswer(r guessResult) error {
+
+	p := r.params
 
 	tx, err := db.Begin()
 	if err != nil {
