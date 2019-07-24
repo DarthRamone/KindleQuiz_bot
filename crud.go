@@ -9,6 +9,48 @@ const (
 	defaultLanguageId = 2 //English
 )
 
+const (
+	awaitingUpload = iota
+	waitingAnswer
+	readyForQuestion
+	migrationInProgress
+)
+
+func getAllUserIds() ([]int, error) {
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.Query("SELECT id FROM users")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make([]int, 0, count)
+	for rows.Next() {
+		var id int
+		err := rows.Scan(&id)
+		if err != nil {
+			continue
+		}
+
+		res = append(res, id)
+	}
+
+	return res, nil
+}
+
+func updateUserState(userId, state int) error {
+	_, err := db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func updateUserLang(userId, langId int) error {
 	_, err := db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userId)
 	if err != nil {
@@ -24,7 +66,7 @@ func createUser(userId int) (*user, error) {
 		return nil, err
 	}
 
-	u := user{userId, lang}
+	u := user{userId, awaitingUpload, lang}
 
 	_, err = db.Exec("INSERT INTO users (id, current_lang) VALUES ($1, $2) ON CONFLICT DO NOTHING", userId, defaultLanguageId)
 	if err != nil {
@@ -97,7 +139,7 @@ func getUser(id int) (*user, error) {
 	userRow := db.QueryRow("SELECT * FROM users WHERE id=$1", id)
 	u := user{}
 	var langId int
-	err := userRow.Scan(&u.id, &langId)
+	err := userRow.Scan(&u.id, &u.currentState, &langId)
 
 	if err != nil {
 		return nil, err

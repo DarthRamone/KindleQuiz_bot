@@ -5,8 +5,44 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"io"
 	"log"
+	"net/http"
+	"os"
+	"strconv"
 )
+
+func downloadAndMigrateKindleSQLite(url string, userId int) error {
+	path := strconv.Itoa(userId) + "_vocab.db"
+
+	err := updateUserState(userId, migrationInProgress)
+	if err != nil {
+		return fmt.Errorf("downloading document: %v", err.Error())
+	}
+
+	err = downloadFile(path, url)
+	if err != nil {
+		return fmt.Errorf("downloading document: %v", err.Error())
+	}
+	defer func() {
+		err = os.Remove(path)
+		if err != nil {
+			log.Printf("downloading document: %v", err.Error())
+		}
+	}()
+
+	err = migrateFromKindleSQLite(path, userId)
+	if err != nil {
+		return fmt.Errorf("downloading document: %v", err.Error())
+	}
+
+	err = updateUserState(userId, readyForQuestion)
+	if err != nil {
+		return fmt.Errorf("downloading document: %v", err.Error())
+	}
+
+	return nil
+}
 
 func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 	sqliteDB, err := sql.Open("sqlite3", sqlitePath)
@@ -58,23 +94,22 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 		}
 
 		log.Println("Insert word")
-		row := tx.QueryRow(""+
-			"INSERT INTO words (word, stem, lang) "+
-			"VALUES ($1, $2, $3) "+
-			"ON CONFLICT DO NOTHING RETURNING id", w.word, w.stem, langId)
 
 		var wordId int
-		err = row.Scan(&wordId)
+		err = tx.QueryRow(""+
+			"INSERT INTO words (word, stem, lang) "+
+			"VALUES ($1, $2, $3) "+
+			"ON CONFLICT (word, stem, lang) DO UPDATE SET word=$1 RETURNING id", w.word, w.stem, langId).Scan(&wordId)
+
 		if err != nil {
-			log.Println(err.Error())
+			log.Printf("insertion word: %v\n", err.Error())
 			log.Println("Query existing word id")
 			//If error happened, probably word with same key was already added, trying to get id
-			row = tx.QueryRow(""+
+			err = tx.QueryRow(""+
 				"SELECT id "+
 				"FROM words "+
-				"WHERE word=$1 AND stem=$2 AND lang=$3", w.word, w.stem, w.lang)
+				"WHERE word=$1 AND stem=$2 AND lang=$3", w.word, w.stem, w.lang).Scan(&wordId)
 
-			err = row.Scan(&wordId)
 			if err != nil {
 				fmt.Printf(err.Error())
 				continue
@@ -106,4 +141,25 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 	}
 
 	return nil
+}
+
+func downloadFile(filepath string, url string) error {
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
 }

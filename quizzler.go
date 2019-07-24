@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"io"
-	"os"
+	"log"
 	"strings"
 	"time"
 )
@@ -35,7 +36,17 @@ func (u user) reportError(err error) {
 }
 
 func (u user) Write(p []byte) (int, error) {
-	return os.Stdin.Write(p)
+	chatId := int64(u.id)
+	log.Printf("chatId: %d\n", chatId)
+	msg := tgbotapi.NewMessage(chatId, string(p))
+	//msg.ReplyToMessageID = update.Message.MessageID
+	_, err := bot.Send(msg) //TODO: error handling maybe
+
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+
+	return len(p), nil
 }
 
 type asker interface {
@@ -96,18 +107,24 @@ func quizStartListen() {
 
 func requestWord(u user) {
 	go func(p quizPlayer) {
+
+		log.Println("request word")
+
 		w, err := getRandomWord(u.id)
 		if err != nil {
+			log.Println("report error: random word")
 			u.reportError(err)
 			return
 		}
 
 		err = setLastWord(u.id, *w)
 		if err != nil {
+			log.Println("report error: set last word")
 			u.reportError(err)
 			return
 		}
 
+		log.Println("send request")
 		r := guessRequest{p, *w}
 		requests <- r
 	}(u)
