@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
 	"io"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -14,7 +13,7 @@ type quizPlayer interface {
 	io.Writer
 	ask(w word)
 	tellResult(r guessResult)
-	error(err error)
+	reportError(err error)
 }
 
 func (u user) ask(w word) {
@@ -31,7 +30,7 @@ func (u user) tellResult(r guessResult) {
 
 }
 
-func (u user) error(err error) {
+func (u user) reportError(err error) {
 	_, _ = fmt.Fprintf(u, err.Error())
 }
 
@@ -101,13 +100,14 @@ func requestWord(u user) {
 	go func(p quizPlayer) {
 		w, err := getRandomWord(u.id)
 		if err != nil {
-			return //TODO: error handler
+			u.reportError(err)
+			return
 		}
 
 		err = setLastWord(u.id, *w)
 		if err != nil {
-			log.Fatalf(err.Error())
-			return //TODO: error handler
+			u.reportError(err)
+			return
 		}
 
 		r := guessRequest{p, *w}
@@ -120,14 +120,14 @@ func guessWord(u *user, guess string) {
 
 		word, err := getLastWord(u.id)
 		if err != nil {
-			log.Fatalf(err.Error())
-			return //TODO error handler
+			u.reportError(err)
+			return
 		}
 
 		translated, err := translateWord(*word, u.currentLanguage)
 		if err != nil {
-			log.Fatalf(err.Error())
-			return //TODO: error handler
+			u.reportError(err)
+			return
 		}
 
 		p := guessParams{*word, guess, u}
