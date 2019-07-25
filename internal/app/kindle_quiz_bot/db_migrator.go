@@ -89,6 +89,8 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 
 		langId, ok := langMap[lc]
 		if !ok {
+			//TODO: error handling?
+			_ = tx.Rollback()
 			fmt.Printf("No such lang code found: %s", lc)
 			continue
 		}
@@ -111,6 +113,8 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 				"WHERE word=$1 AND stem=$2 AND lang=$3", w.word, w.stem, w.lang).Scan(&wordId)
 
 			if err != nil {
+				//TODO: error handling?
+				_ = tx.Rollback()
 				fmt.Printf(err.Error())
 				continue
 			}
@@ -122,6 +126,8 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 			"VALUES ($1) "+
 			"ON CONFLICT DO NOTHING", userId)
 		if err != nil {
+			//TODO: error handling?
+			_ = tx.Rollback()
 			return fmt.Errorf("postgre: inserting user: %v", err.Error())
 		}
 
@@ -131,6 +137,8 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 			"VALUES ($1, $2) "+
 			"ON CONFLICT DO NOTHING", userId, wordId)
 		if err != nil {
+			//TODO: error handling?
+			_ = tx.Rollback()
 			return fmt.Errorf("postgre: inserting user_word: %v", err.Error())
 		}
 

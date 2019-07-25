@@ -232,6 +232,8 @@ func writeAnswer(r guessResult) error {
 
 	lang, err := getUserLanguage(r.params.userId)
 	if err != nil {
+		//TODO: error handling
+		_ = tx.Rollback()
 		return err
 	}
 
@@ -251,6 +253,8 @@ func writeAnswer(r guessResult) error {
 	_, err = tx.Exec(queryStr)
 
 	if err != nil {
+		//TODO: error handling
+		_ = tx.Rollback()
 		return fmt.Errorf("write answer: %s", err.Error())
 	}
 
