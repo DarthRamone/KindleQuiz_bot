@@ -20,10 +20,7 @@ func main() {
 
 	flag.Parse()
 
-	var tgToken = *token
-	if tgToken == "" {
-		tgToken = os.Getenv("TG_TOKEN")
-	}
+	tgToken := getTgToken()
 
 	//Initialize telegram bot
 	var err error
@@ -43,6 +40,7 @@ func main() {
 	u.Timeout = 60
 
 	updates, err := bot.GetUpdatesChan(u)
+	defer bot.StopReceivingUpdates()
 
 	for update := range updates {
 		if update.Message == nil { // ignore any non-Message Updates
@@ -99,4 +97,17 @@ func (s botAPI) SendMessage(userId int, text string) error {
 	}
 
 	return nil
+}
+
+func getTgToken() string {
+	var tgToken = *token
+	if tgToken == "" {
+		tgToken = os.Getenv("TG_TOKEN")
+	}
+
+	if tgToken == "" {
+		log.Fatal("unable get telegram bot api token")
+	}
+
+	return tgToken
 }
