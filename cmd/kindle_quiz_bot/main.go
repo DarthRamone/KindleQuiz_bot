@@ -19,10 +19,6 @@ func main() {
 
 	flag.Parse()
 
-	//Initialize quiz
-	quiz.StartListen(_messageSender(sendMessageToUser))
-	defer quiz.StopListen()
-
 	//Initialize telegram bot
 	var err error
 	bot.BotAPI, err = tg.NewBotAPI(*token)
@@ -32,6 +28,10 @@ func main() {
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	//Initialize quiz
+	quiz.StartListen(bot)
+	defer quiz.StopListen()
 
 	u := tg.NewUpdate(0)
 	u.Timeout = 60
@@ -85,7 +85,7 @@ func main() {
 	}
 }
 
-func sendMessageToUser(userId int, text string) error {
+func (s botAPI) SendMessage(userId int, text string) error {
 	msg := tg.NewMessage(int64(userId), text)
 	_, err := bot.Send(msg)
 	if err != nil {
@@ -93,10 +93,4 @@ func sendMessageToUser(userId int, text string) error {
 	}
 
 	return nil
-}
-
-type _messageSender func(int, string) error
-
-func (s _messageSender) SendMessage(userId int, text string) error {
-	return s(userId, text)
 }
