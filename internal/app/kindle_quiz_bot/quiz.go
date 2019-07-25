@@ -72,11 +72,11 @@ type MessageSender interface {
 	SendMessage(userId int, text string) error
 }
 
-func NewQuiz(s MessageSender) *Quiz {
+func NewQuiz(s MessageSender) Quiz {
 	var req = make(chan guessRequest)
 	var res = make(chan guessResult)
 	var q Quiz = &quiz{sender: s, requests: req, results: res}
-	return &q
+	return q
 }
 
 func (q *quiz) StartListen() {

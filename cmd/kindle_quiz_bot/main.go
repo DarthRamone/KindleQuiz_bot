@@ -32,7 +32,7 @@ func main() {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	q := *quiz.NewQuiz(bot)
+	q := quiz.NewQuiz(bot)
 	q.StartListen()
 	defer q.StopListen()
 
