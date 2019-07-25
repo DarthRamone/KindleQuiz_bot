@@ -27,25 +27,6 @@ func ask(r guessRequest) {
 	_ = sender.sendMessage(r.userId, q) //TODO: error handle
 }
 
-
-
-func (u user) reportError(err error) {
-	_, _ = fmt.Fprintf(u, err.Error())
-}
-
-func (u user) Write(p []byte) (int, error) {
-	chatId := int64(u.id)
-	log.Printf("chatId: %d\n", chatId)
-
-	err := sender.sendMessage(u.id, string(p))
-
-	if err != nil {
-		return 0, err
-	}
-
-	return len(p), nil
-}
-
 type guessRequest struct {
 	userId int
 	word   word
@@ -130,31 +111,122 @@ func RequestWord(userId int) {
 	}(userId)
 }
 
-func GuessWord(userId int, guess string) {
-	go func(id int) {
+func ShowHelp(userId int) {
+	msg := "" +
+		"/quiz - ask a random word\n" +
+		"/help - show this help\n" +
+		"/set_lang - change language\n" +
+		"/upload - uploading mode\n" +
+		"/cancel - cancel current operation\n"
 
-		word, err := getLastWord(id)
+	//TODO: error handling
+	_ = sender.sendMessage(userId, msg)
+}
+
+func Greetings(userId int) {
+	msg := "Yo. Firstly you have to run /upload and upload your vocab.db file.\n" +
+		"Next run /quiz and have some fun, idk. You can ask me for /help also."
+
+	//TODO: error handling
+	_ = sender.sendMessage(userId, msg)
+}
+
+func SelectLang(userId int) {
+	langs, err := getLanguages()
+	if err != nil {
+		return //TODO Error hanling
+	}
+
+	msg := "Select language code:\n\n"
+	for _, l := range langs {
+		msg += fmt.Sprintf("[%s] %s\n", l.code, l.english_name)
+	}
+
+	err = updateUserState(userId, awaitingLanguage)
+	if err != nil {
+		//TODO: what?
+	}
+
+	//TODO: error handling
+	_ = sender.sendMessage(userId, msg)
+}
+
+func AwaitUpload(userId int) {
+	err := updateUserState(userId, awaitingUpload)
+	if err != nil {
+		return //TODO: Error handle
+	}
+
+	//TODO: error handling
+	_ = sender.sendMessage(userId, "Now send vocab.db file exported from your kindle")
+}
+
+func CancelOperation(userId int) {
+
+	user, err := getUser(userId)
+	if err != nil {
+		return //TODO: error handle
+	}
+
+	if user.currentState == readyForQuestion {
+		//TODO error handle
+		_ = sender.sendMessage(userId, "Nothing to cancel")
+		return
+	}
+
+	err = updateUserState(userId, readyForQuestion)
+	if err != nil {
+		return //TODO: Error handle
+	}
+
+	//TODO: error handle
+	_ = sender.sendMessage(userId, "Done")
+}
+
+func ProcessMessage(userId int, text, documentUrl string) {
+
+	u, err := getUser(userId)
+	if err != nil {
+		return //TODO: error handle
+	}
+
+	log.Printf("process non route: curr state: %d\n", u.currentState)
+
+	switch u.currentState {
+	case awaitingUpload:
+		tryToMigrate(userId, documentUrl)
+	case readyForQuestion:
+		ShowHelp(u.id)
+	case waitingAnswer:
+		guessWord(*u, text)
+	case migrationInProgress:
+		showMigrationInProgressWarn(userId)
+	case awaitingLanguage:
+		setLanguage(*u, text)
+	}
+}
+
+func guessWord(usr user, guess string) {
+
+	go func(u user) {
+
+		word, err := getLastWord(u.id)
 		if err != nil {
 			//TODO Error handle
-			_ = sender.sendMessage(id, err.Error())
+			_ = sender.sendMessage(u.id, err.Error())
 			return
 		}
 
-		lang, err := getUserLanguage(id)
-		if err != nil {
-			return //TODO: error handle
-		}
-
-		translated, err := translateWord(*word, lang)
+		translated, err := translateWord(*word, u.currentLanguage)
 		if err != nil {
 			//TODO Error handle
-			_ = sender.sendMessage(id, err.Error())
+			_ = sender.sendMessage(u.id, err.Error())
 			return
 		}
 
-		err = deleteLastWord(id)
+		err = deleteLastWord(u.id)
 
-		p := guessParams{*word, guess, id}
+		p := guessParams{*word, guess, u.id}
 		r := guessResult{p, translated}
 		results <- r
 
@@ -163,11 +235,24 @@ func GuessWord(userId int, guess string) {
 			log.Printf("Failed to write answer: %v\n", err.Error())
 		}
 
-		err = updateUserState(id, readyForQuestion)
+		err = updateUserState(u.id, readyForQuestion)
 		if err != nil {
 			//TODO: what?
 		}
-	}(userId)
+	}(usr)
+
+}
+
+func tryToMigrate(userId int, url string) {
+	err := downloadAndMigrateKindleSQLite(url, userId)
+	if err != nil {
+		//TODO: error handle
+		_ = sender.sendMessage(userId, "Looks like db file in incorrect format. Try again.")
+		return
+	}
+
+	//TODO: error handle
+	_ = sender.sendMessage(userId, "Migration completed. Press /quiz to start a game.")
 }
 
 func translateWord(w word, dst *lang) (string, error) {
@@ -195,4 +280,26 @@ func compareWords(w1, w2 string) bool {
 	s2 := strings.ToLower(strings.Trim(w2, " "))
 
 	return s1 == s2
+}
+
+func setLanguage(u user, lc string) {
+	l, err := getLanguageWithCode(lc)
+	if err != nil {
+		//TODO: error handle
+		_ = sender.sendMessage(u.id, "Invalid language code")
+		return
+	}
+
+	err = updateUserLang(u.id, l.id)
+	if err != nil {
+		return //TODO
+	}
+
+	//TODO: error handle
+	_ = sender.sendMessage(u.id, fmt.Sprintf("Language changed to: %s", l.localized_name))
+}
+
+func showMigrationInProgressWarn(userId int) {
+	//TODO: error handle
+	_ = sender.sendMessage(userId, "Migration still in progress.")
 }
