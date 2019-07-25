@@ -1,6 +1,7 @@
 package kindle_quiz_bot
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
@@ -13,7 +14,8 @@ var db *sql.DB
 var sender MessageSender
 var results = make(chan guessResult)
 var requests = make(chan guessRequest)
-var stop = make(chan struct{})
+var cancel context.CancelFunc
+var ctx context.Context
 
 type guessRequest struct {
 	userId int
@@ -83,12 +85,15 @@ func StartListen(s MessageSender) {
 		}
 	}
 
+	ctx = context.Background()
+	ctx, cancel = context.WithCancel(ctx)
+
 	sender = s
 
 	go func() {
 		for {
 			select {
-			case <-stop:
+			case <-ctx.Done():
 				for range results {
 				}
 				for range requests {
@@ -108,7 +113,7 @@ func StartListen(s MessageSender) {
 
 func StopListen() {
 	db.Close()
-	close(stop)
+	cancel()
 }
 
 func RequestWord(userId int) {
@@ -345,7 +350,7 @@ func showMigrationInProgressWarn(userId int) {
 
 func Stopped() bool {
 	select {
-	case <- stop:
+	case <- ctx.Done():
 		return true
 	default:
 		return false
