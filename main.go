@@ -4,13 +4,17 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"github.com/go-telegram-bot-api/telegram-bot-api"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 )
 
+type botAPI struct {
+	*tg.BotAPI
+}
+
 var db *sql.DB
-var bot *tgbotapi.BotAPI
+var bot = botAPI{}
 
 var token = flag.String("token", "", "telegram API bot token")
 
@@ -42,10 +46,10 @@ func main() {
 	}
 
 	//Initialize quiz
-	quizStartListen()
+	quizStartListen(_messageSender(sendMessageToUser))
 
 	//Initialize telegram bot
-	bot, err = tgbotapi.NewBotAPI(*token)
+	bot.BotAPI, err = tg.NewBotAPI(*token)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -54,7 +58,7 @@ func main() {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	u := tgbotapi.NewUpdate(0)
+	u := tg.NewUpdate(0)
 	u.Timeout = 60
 
 	updates, err := bot.GetUpdatesChan(u)
@@ -100,7 +104,7 @@ func main() {
 	}
 }
 
-func processNonRouteUpdate(u user, update tgbotapi.Update) {
+func processNonRouteUpdate(u user, update tg.Update) {
 
 	log.Printf("process non route: curr state: %d\n", u.currentState)
 
@@ -121,12 +125,12 @@ func processNonRouteUpdate(u user, update tgbotapi.Update) {
 func greetings(u user) {
 	msg := "Yo. Firstly you have to run /upload and upload your vocab.db file.\n" +
 		"Next run /quiz and have some fun, idk. You can ask me for /help also."
-	sendMessageToUser(u, msg)
+	sendMessageToUser(u.id, msg)
 }
 
 func cancel(u user) {
 	if u.currentState == readyForQuestion {
-		sendMessageToUser(u, "Nothing to cancel")
+		sendMessageToUser(u.id, "Nothing to cancel")
 		return
 	}
 
@@ -135,7 +139,7 @@ func cancel(u user) {
 		return //TODO: Error handle
 	}
 
-	sendMessageToUser(u, "Done")
+	sendMessageToUser(u.id, "Done")
 }
 
 func awaitUpload(u user) {
@@ -144,14 +148,13 @@ func awaitUpload(u user) {
 		return //TODO: Error handle
 	}
 
-	sendMessageToUser(u, "Now send vocab.db file exported from your kindle")
+	sendMessageToUser(u.id, "Now send vocab.db file exported from your kindle")
 }
-
 
 func setLanguage(u user, lc string) {
 	l, err := getLanguageWithCode(lc)
 	if err != nil {
-		sendMessageToUser(u, "Invalid language code")
+		sendMessageToUser(u.id, "Invalid language code")
 		return
 	}
 
@@ -160,11 +163,11 @@ func setLanguage(u user, lc string) {
 		return //TODO
 	}
 
-	sendMessageToUser(u, fmt.Sprintf("Language changed to: %s", l.localized_name))
+	sendMessageToUser(u.id, fmt.Sprintf("Language changed to: %s", l.localized_name))
 }
 
-func tryToMigrate(u user, update tgbotapi.Update) {
-	if (update.Message.Document != nil) {
+func tryToMigrate(u user, update tg.Update) {
+	if update.Message.Document != nil {
 		go func(u user) {
 
 			url, err := bot.GetFileDirectURL(update.Message.Document.FileID)
@@ -175,15 +178,15 @@ func tryToMigrate(u user, update tgbotapi.Update) {
 
 			err = downloadAndMigrateKindleSQLite(url, update.Message.From.ID)
 			if err != nil {
-				sendMessageToUser(u, "Looks like db file in incorrect format. Try again.")
+				sendMessageToUser(u.id, "Looks like db file in incorrect format. Try again.")
 				return
 			}
 
-			sendMessageToUser(u, "Migration completed. Press /quiz to start a game.")
+			sendMessageToUser(u.id, "Migration completed. Press /quiz to start a game.")
 
 		}(u)
 
-		sendMessageToUser(u, "Processing...")
+		sendMessageToUser(u.id, "Processing...")
 	}
 }
 
@@ -194,11 +197,11 @@ func showHelp(u user) {
 		"/set_lang - change language\n" +
 		"/upload - uploading mode\n" +
 		"/cancel - cancel current operation\n"
-	sendMessageToUser(u, msg)
+	sendMessageToUser(u.id, msg)
 }
 
 func showMigrationInProgressWarn(u user) {
-	sendMessageToUser(u, "Migration still in progress.")
+	sendMessageToUser(u.id, "Migration still in progress.")
 }
 
 func selectLang(u user) {
@@ -217,9 +220,21 @@ func selectLang(u user) {
 		//TODO: what?
 	}
 
-	sendMessageToUser(u, msg)
+	sendMessageToUser(u.id, msg)
 }
 
-func sendMessageToUser(u user, text string) {
-	_, _ = fmt.Fprintf(u, text)
+func sendMessageToUser(userId int, text string) error {
+	msg := tg.NewMessage(int64(userId), text)
+	_, err := bot.Send(msg)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type _messageSender func(int, string) error
+
+func (s _messageSender) sendMessage(userId int, text string) error {
+	return s(userId, text)
 }

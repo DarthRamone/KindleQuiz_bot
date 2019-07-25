@@ -4,12 +4,15 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"io"
 	"log"
 	"strings"
 	"time"
 )
+
+type messageSender interface {
+	sendMessage(userId int, text string) error
+}
 
 type quizPlayer interface {
 	io.Writer
@@ -39,12 +42,11 @@ func (u user) reportError(err error) {
 func (u user) Write(p []byte) (int, error) {
 	chatId := int64(u.id)
 	log.Printf("chatId: %d\n", chatId)
-	msg := tgbotapi.NewMessage(chatId, string(p))
 
-	_, err := bot.Send(msg) //TODO: error handling maybe
+	err := sender.sendMessage(u.id, string(p))
 
 	if err != nil {
-		log.Fatalf(err.Error())
+		return 0, err
 	}
 
 	return len(p), nil
@@ -86,10 +88,15 @@ func (t *guessResult) correct() bool {
 	return compareWords(t.params.guess, t.translation)
 }
 
+var sender messageSender
+
 var results = make(chan resultTeller)
 var requests = make(chan asker)
 
-func quizStartListen() {
+func quizStartListen(s messageSender) {
+
+	sender = s
+
 	go func() {
 		for {
 			select {
