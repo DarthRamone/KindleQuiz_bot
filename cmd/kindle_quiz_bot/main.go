@@ -5,6 +5,7 @@ import (
 	quiz "github.com/DarthRamone/KindleQuiz_bot/internal/app/kindle_quiz_bot"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
+	"os"
 )
 
 type botAPI struct {
@@ -19,9 +20,14 @@ func main() {
 
 	flag.Parse()
 
+	var tgToken = *token
+	if tgToken == "" {
+		tgToken = os.Getenv("TG_TOKEN")
+	}
+
 	//Initialize telegram bot
 	var err error
-	bot.BotAPI, err = tg.NewBotAPI(*token)
+	bot.BotAPI, err = tg.NewBotAPI(tgToken)
 
 	if err != nil {
 		log.Panic(err)
