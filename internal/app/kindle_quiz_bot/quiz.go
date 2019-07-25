@@ -117,7 +117,7 @@ func (q *quiz) StopListen() {
 	q.cancel()
 }
 
-func (q*quiz) RequestWord(userId int) {
+func (q *quiz) RequestWord(userId int) {
 	go func(id int) {
 
 		log.Println("request word")
@@ -155,18 +155,19 @@ func (q*quiz) RequestWord(userId int) {
 }
 
 func (q *quiz) ShowHelp(userId int) {
-	msg := "" +
-		"/quiz - ask a random word\n" +
-		"/help - show this help\n" +
-		"/set_lang - change language\n" +
-		"/upload - uploading mode\n" +
-		"/cancel - cancel current operation\n"
+	msg := `
+/quiz - ask a random word
+/help - show this help
+/set_lang - change language
+/upload - uploading mode
+/cancel - cancel current operation
+`
 	q.sendMessage(userId, msg)
 }
 
 func (q *quiz) Greetings(userId int) {
-	msg := "Yo. Firstly you have to run /upload and upload your vocab.db file.\n" +
-		"Next run /quiz and have some fun, idk. You can ask me for /help also."
+	msg := `Yo. Firstly you have to run /upload and upload your vocab.db file. 
+Next run /quiz and have some fun, idk. You can ask me for /help also.`
 	q.sendMessage(userId, msg)
 }
 
@@ -344,7 +345,7 @@ func (q *quiz) showMigrationInProgressWarn(userId int) {
 func (q *quiz) connectToDB() error {
 
 	c := crud{}
-	p := connectionParams{user:"postgres",dbName:"vocab",port:32770,sslMode:"disable"}
+	p := connectionParams{user: "postgres", dbName: "vocab", port: 32770, sslMode: "disable"}
 	err := c.connect(p)
 	if err != nil {
 		return err

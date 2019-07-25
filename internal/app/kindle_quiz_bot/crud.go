@@ -1,9 +1,9 @@
 package kindle_quiz_bot
 
 import (
-	_ "github.com/lib/pq"
 	"database/sql"
 	"fmt"
+	_ "github.com/lib/pq"
 	"log"
 )
 
