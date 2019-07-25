@@ -10,15 +10,27 @@ import (
 	"time"
 )
 
-var (
-	db *sql.DB
-	sender MessageSender
-	results = make(chan guessResult)
-	requests = make(chan guessRequest)
-	cancel context.CancelFunc
-	ctx context.Context
-)
+type Quiz interface {
+	StartListen()
+	StopListen()
+	Stopped() bool
+	Greetings(userId int)
+	ShowHelp(userId int)
+	RequestWord(userId int)
+	SelectLang(userId int)
+	AwaitUpload(userId int)
+	CancelOperation(userId int)
+	ProcessMessage(userId int, text, documentUrl string)
+}
 
+type quiz struct {
+	*crud
+	sender   MessageSender
+	requests chan guessRequest
+	results  chan guessResult
+	cancel   context.CancelFunc
+	ctx      context.Context
+}
 
 type guessRequest struct {
 	userId int
@@ -60,107 +72,106 @@ type MessageSender interface {
 	SendMessage(userId int, text string) error
 }
 
-func StartListen(s MessageSender) {
+func NewQuiz(s MessageSender) *Quiz {
+	var req = make(chan guessRequest)
+	var res = make(chan guessResult)
+	var q Quiz = &quiz{sender: s, requests: req, results: res}
+	return &q
+}
 
-	if db == nil {
-		err := connectToDB()
+func (q *quiz) StartListen() {
+
+	if q.crud == nil {
+		err := q.connectToDB()
 		if err != nil {
 			log.Fatalf("db connect: %v", err.Error())
 		}
 	}
 
-	ctx = context.Background()
-	ctx, cancel = context.WithCancel(ctx)
+	q.ctx = context.Background()
+	q.ctx, q.cancel = context.WithCancel(q.ctx)
 
-	sender = s
-
-	go func() {
+	go func(quiz *quiz) {
 		for {
 			select {
-			case <-ctx.Done():
-				for range results {
+			case <-quiz.ctx.Done():
+				for range quiz.results {
 				}
-				for range requests {
+				for range quiz.requests {
 				}
-			case req := <-requests:
+			case req := <-quiz.requests:
 				go func() {
-					ask(req)
+					quiz.ask(req)
 				}()
-			case res := <-results:
+			case res := <-quiz.results:
 				go func() {
-					tellResult(res)
+					quiz.tellResult(res)
 				}()
 			}
 		}
-	}()
+	}(q)
 }
 
-func StopListen() {
-	db.Close()
-	cancel()
+func (q *quiz) StopListen() {
+	q.crud.close()
+	q.cancel()
 }
 
-func RequestWord(userId int) {
+func (q*quiz) RequestWord(userId int) {
 	go func(id int) {
 
 		log.Println("request word")
 
-		w, err := getRandomWord(userId)
+		w, err := q.getRandomWord(userId)
 
 		if err == sql.ErrNoRows {
 			//TODO: error handle
-			_ = sender.SendMessage(id, "No words found. Please run /upload and follow instructions")
+			_ = q.sender.SendMessage(id, "No words found. Please run /upload and follow instructions")
 			return
 		}
 
 		if err != nil {
 			log.Println("report error: random word")
-			//TODO Error handle
-			_ = sender.SendMessage(id, err.Error())
+			q.sendMessage(id, err.Error())
 			return
 		}
 
-		err = setLastWord(id, *w)
+		err = q.setLastWord(id, *w)
 		if err != nil {
 			log.Println("report error: set last word")
-			//TODO Error handle
-			_ = sender.SendMessage(id, err.Error())
+			q.sendMessage(id, err.Error())
 			return
 		}
 
 		log.Println("send request")
 		r := guessRequest{id, *w}
-		requests <- r
+		q.requests <- r
 
-		err = updateUserState(id, waitingAnswer)
+		err = q.updateUserState(id, waitingAnswer)
 		if err != nil {
 			//TODO: what?
 		}
 	}(userId)
 }
 
-func ShowHelp(userId int) {
+func (q *quiz) ShowHelp(userId int) {
 	msg := "" +
 		"/quiz - ask a random word\n" +
 		"/help - show this help\n" +
 		"/set_lang - change language\n" +
 		"/upload - uploading mode\n" +
 		"/cancel - cancel current operation\n"
-
-	//TODO: error handling
-	_ = sender.SendMessage(userId, msg)
+	q.sendMessage(userId, msg)
 }
 
-func Greetings(userId int) {
+func (q *quiz) Greetings(userId int) {
 	msg := "Yo. Firstly you have to run /upload and upload your vocab.db file.\n" +
 		"Next run /quiz and have some fun, idk. You can ask me for /help also."
-
-	//TODO: error handling
-	_ = sender.SendMessage(userId, msg)
+	q.sendMessage(userId, msg)
 }
 
-func SelectLang(userId int) {
-	langs, err := getLanguages()
+func (q *quiz) SelectLang(userId int) {
+	langs, err := q.getLanguages()
 	if err != nil {
 		return //TODO Error hanling
 	}
@@ -170,50 +181,46 @@ func SelectLang(userId int) {
 		msg += fmt.Sprintf("[%s] %s\n", l.code, l.english_name)
 	}
 
-	err = updateUserState(userId, awaitingLanguage)
+	err = q.updateUserState(userId, awaitingLanguage)
 	if err != nil {
 		//TODO: what?
 	}
 
-	//TODO: error handling
-	_ = sender.SendMessage(userId, msg)
+	q.sendMessage(userId, msg)
 }
 
-func AwaitUpload(userId int) {
-	err := updateUserState(userId, awaitingUpload)
+func (q *quiz) AwaitUpload(userId int) {
+	err := q.updateUserState(userId, awaitingUpload)
 	if err != nil {
 		return //TODO: Error handle
 	}
 
-	//TODO: error handling
-	_ = sender.SendMessage(userId, "Now send vocab.db file exported from your kindle")
+	q.sendMessage(userId, "Now send vocab.db file exported from your kindle")
 }
 
-func CancelOperation(userId int) {
+func (q *quiz) CancelOperation(userId int) {
 
-	user, err := getUser(userId)
+	user, err := q.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
 	}
 
 	if user.currentState == readyForQuestion {
-		//TODO error handle
-		_ = sender.SendMessage(userId, "Nothing to cancel")
+		q.sendMessage(userId, "Nothing to cancel")
 		return
 	}
 
-	err = updateUserState(userId, readyForQuestion)
+	err = q.updateUserState(userId, readyForQuestion)
 	if err != nil {
 		return //TODO: Error handle
 	}
 
-	//TODO: error handle
-	_ = sender.SendMessage(userId, "Done")
+	q.sendMessage(userId, "Done")
 }
 
-func ProcessMessage(userId int, text, documentUrl string) {
+func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 
-	u, err := getUser(userId)
+	u, err := q.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
 	}
@@ -222,58 +229,55 @@ func ProcessMessage(userId int, text, documentUrl string) {
 
 	switch u.currentState {
 	case awaitingUpload:
-		tryToMigrate(userId, documentUrl)
+		q.tryToMigrate(userId, documentUrl)
 	case readyForQuestion:
-		ShowHelp(u.id)
+		q.ShowHelp(u.id)
 	case waitingAnswer:
-		guessWord(*u, text)
+		q.guessWord(*u, text)
 	case migrationInProgress:
-		showMigrationInProgressWarn(userId)
+		q.showMigrationInProgressWarn(userId)
 	case awaitingLanguage:
-		setLanguage(*u, text)
+		q.setLanguage(*u, text)
 	}
 }
 
-func Stopped() bool {
+func (q *quiz) Stopped() bool {
 	select {
-	case <- ctx.Done():
+	case <-q.ctx.Done():
 		return true
 	default:
 		return false
 	}
 }
 
-
-func guessWord(usr user, guess string) {
+func (q *quiz) guessWord(usr user, guess string) {
 
 	go func(u user) {
 
-		word, err := getLastWord(u.id)
+		word, err := q.getLastWord(u.id)
 		if err != nil {
-			//TODO Error handle
-			_ = sender.SendMessage(u.id, err.Error())
+			q.sendMessage(u.id, err.Error())
 			return
 		}
 
 		translated, err := translateWord(*word, u.currentLanguage)
 		if err != nil {
-			//TODO Error handle
-			_ = sender.SendMessage(u.id, err.Error())
+			q.sendMessage(u.id, err.Error())
 			return
 		}
 
-		err = deleteLastWord(u.id)
+		err = q.deleteLastWord(u.id)
 
 		p := guessParams{*word, guess, u.id}
 		r := guessResult{p, translated}
-		results <- r
+		q.addResult(r)
 
-		err = writeAnswer(r)
+		err = q.persistAnswer(r)
 		if err != nil {
 			log.Printf("Failed to write answer: %v\n", err.Error())
 		}
 
-		err = updateUserState(u.id, readyForQuestion)
+		err = q.updateUserState(u.id, readyForQuestion)
 		if err != nil {
 			//TODO: what?
 		}
@@ -281,16 +285,14 @@ func guessWord(usr user, guess string) {
 
 }
 
-func tryToMigrate(userId int, url string) {
-	err := downloadAndMigrateKindleSQLite(url, userId)
+func (q *quiz) tryToMigrate(userId int, url string) {
+	err := q.downloadAndMigrateKindleSQLite(url, userId)
 	if err != nil {
-		//TODO: error handle
-		_ = sender.SendMessage(userId, "Looks like db file in incorrect format. Try again.")
+		q.sendMessage(userId, "Looks like db file in incorrect format. Try again.")
 		return
 	}
 
-	//TODO: error handle
-	_ = sender.SendMessage(userId, "Migration completed. Press /quiz to start a game.")
+	q.sendMessage(userId, "Migration completed. Press /quiz to start a game.")
 }
 
 func translateWord(w word, dst *lang) (string, error) {
@@ -320,55 +322,68 @@ func compareWords(w1, w2 string) bool {
 	return s1 == s2
 }
 
-func setLanguage(u user, lc string) {
-	l, err := getLanguageWithCode(lc)
+func (q *quiz) setLanguage(u user, lc string) {
+	l, err := q.getLanguageWithCode(lc)
 	if err != nil {
-		//TODO: error handle
-		_ = sender.SendMessage(u.id, "Invalid language code")
+		q.sendMessage(u.id, "Invalid language code")
 		return
 	}
 
-	err = updateUserLang(u.id, l.id)
+	err = q.updateUserLang(u.id, l.id)
 	if err != nil {
 		return //TODO
 	}
 
-	//TODO: error handle
-	_ = sender.SendMessage(u.id, fmt.Sprintf("Language changed to: %s", l.localized_name))
+	q.sendMessage(u.id, fmt.Sprintf("Language changed to: %s", l.localized_name))
 }
 
-func showMigrationInProgressWarn(userId int) {
-	//TODO: error handle
-	_ = sender.SendMessage(userId, "Migration still in progress.")
+func (q *quiz) showMigrationInProgressWarn(userId int) {
+	q.sendMessage(userId, "Migration still in progress.")
 }
 
-func connectToDB() error {
-	connStr := "user=postgres dbname=vocab port=32770 sslmode=disable"
+func (q *quiz) connectToDB() error {
 
-	var err error
-	db, err = sql.Open("postgres", connStr)
+	c := crud{}
+	p := connectionParams{user:"postgres",dbName:"vocab",port:32770,sslMode:"disable"}
+	err := c.connect(p)
 	if err != nil {
 		return err
 	}
 
+	q.crud = &c
+
 	return nil
 }
 
-
-func tellResult(r guessResult) {
+func (q *quiz) tellResult(r guessResult) {
 	if r.correct() {
-		_ = sender.SendMessage(r.params.userId, "Your answer is correct")
+		q.sendMessage(r.params.userId, "Your answer is correct")
 	} else {
-		_ = sender.SendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
+		q.sendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
 	}
 }
 
-func ask(r guessRequest) {
+func (q *quiz) ask(r guessRequest) {
 	w := r.word
-	q := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
-	_ = sender.SendMessage(r.userId, q) //TODO: error handle
+	question := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
+	q.sendMessage(r.userId, question)
 }
 
 func (t *guessResult) correct() bool {
 	return compareWords(t.params.guess, t.translation)
+}
+
+func (q *quiz) sendMessage(userId int, text string) {
+	err := q.sender.SendMessage(userId, text)
+	if err != nil {
+		//TODO: Error handle
+	}
+}
+
+func (q *quiz) addRequest(request guessRequest) {
+	q.requests <- request
+}
+
+func (q *quiz) addResult(result guessResult) {
+	q.results <- result
 }

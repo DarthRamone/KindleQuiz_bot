@@ -35,9 +35,9 @@ func main() {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	//Initialize quiz
-	quiz.StartListen(bot)
-	defer quiz.StopListen()
+	q := *quiz.NewQuiz(bot)
+	q.StartListen()
+	defer q.StopListen()
 
 	u := tg.NewUpdate(0)
 	u.Timeout = 60
@@ -49,7 +49,7 @@ func main() {
 			continue
 		}
 
-		if quiz.Stopped() {
+		if q.Stopped() {
 			continue
 		}
 
@@ -59,17 +59,17 @@ func main() {
 
 		switch update.Message.Text {
 		case "/start":
-			quiz.Greetings(userId)
+			q.Greetings(userId)
 		case "/quiz":
-			quiz.RequestWord(userId)
+			q.RequestWord(userId)
 		case "/help":
-			quiz.ShowHelp(userId)
+			q.ShowHelp(userId)
 		case "/set_lang":
-			quiz.SelectLang(userId)
+			q.SelectLang(userId)
 		case "/upload":
-			quiz.AwaitUpload(userId)
+			q.AwaitUpload(userId)
 		case "/cancel":
-			quiz.CancelOperation(userId)
+			q.CancelOperation(userId)
 		default:
 			go func(upd tg.Update) {
 				userId := update.Message.From.ID
@@ -81,10 +81,10 @@ func main() {
 						return //TODO: Error handling
 					}
 
-					quiz.ProcessMessage(userId, update.Message.Text, url)
+					q.ProcessMessage(userId, update.Message.Text, url)
 
 				} else {
-					quiz.ProcessMessage(userId, update.Message.Text, "")
+					q.ProcessMessage(userId, update.Message.Text, "")
 				}
 			}(update)
 		}

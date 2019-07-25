@@ -1,6 +1,7 @@
 package kindle_quiz_bot
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 )
@@ -17,12 +18,41 @@ const (
 	awaitingLanguage
 )
 
-func getUserLanguage(userId int) (*lang, error) {
+type crud struct {
+	db *sql.DB
+}
+
+type connectionParams struct {
+	user     string
+	password string
+	dbName   string
+	port     int
+	sslMode  string
+}
+
+func (crud *crud) connect(p connectionParams) error {
+
+	connStr := fmt.Sprintf("user=%s dbname=%s port=%d sslmode=%s", p.user, p.dbName, p.port, p.sslMode)
+
+	var err error
+	crud.db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (crud *crud) close() {
+	crud.db.Close()
+}
+
+func (crud *crud) getUserLanguage(userId int) (*lang, error) {
 	l := lang{}
-	err := db.QueryRow("" +
-		"SELECT * FROM languages " +
-		"WHERE id=" +
-			"(SELECT current_lang FROM users WHERE id=$1)", userId).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+	err := crud.db.QueryRow(""+
+		"SELECT * FROM languages "+
+		"WHERE id="+
+		"(SELECT current_lang FROM users WHERE id=$1)", userId).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
 	if err != nil {
 		return nil, err
 	}
@@ -30,14 +60,14 @@ func getUserLanguage(userId int) (*lang, error) {
 	return &l, nil
 }
 
-func getAllUserIds() ([]int, error) {
+func (crud *crud) getAllUserIds() ([]int, error) {
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	err := crud.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := db.Query("SELECT id FROM users")
+	rows, err := crud.db.Query("SELECT id FROM users")
 	if err != nil {
 		return nil, err
 	}
@@ -57,32 +87,32 @@ func getAllUserIds() ([]int, error) {
 	return res, nil
 }
 
-func updateUserState(userId, state int) error {
-	_, err := db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
+func (crud *crud) updateUserState(userId, state int) error {
+	_, err := crud.db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func updateUserLang(userId, langId int) error {
-	_, err := db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userId)
+func (crud *crud) updateUserLang(userId, langId int) error {
+	_, err := crud.db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userId)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func createUser(userId int) (*user, error) {
+func (crud *crud) createUser(userId int) (*user, error) {
 
-	lang, err := getLang(defaultLanguageId)
+	lang, err := crud.getLang(defaultLanguageId)
 	if err != nil {
 		return nil, err
 	}
 
 	u := user{userId, readyForQuestion, lang}
 
-	_, err = db.Exec("INSERT INTO users (id, current_lang) VALUES ($1, $2) ON CONFLICT DO NOTHING", userId, defaultLanguageId)
+	_, err = crud.db.Exec("INSERT INTO users (id, current_lang) VALUES ($1, $2) ON CONFLICT DO NOTHING", userId, defaultLanguageId)
 	if err != nil {
 		return nil, err
 	}
@@ -90,48 +120,48 @@ func createUser(userId int) (*user, error) {
 	return &u, nil
 }
 
-func deleteLastWord(userId int) error {
-	_, err := db.Exec("DELETE FROM questions WHERE user_id=$1", userId)
+func (crud *crud) deleteLastWord(userId int) error {
+	_, err := crud.db.Exec("DELETE FROM questions WHERE user_id=$1", userId)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func setLastWord(userId int, w word) error {
-	_, err := db.Exec("INSERT INTO questions (user_id, word_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET word_id=$2", userId, w.id)
+func (crud *crud) setLastWord(userId int, w word) error {
+	_, err := crud.db.Exec("INSERT INTO questions (user_id, word_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET word_id=$2", userId, w.id)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func getLastWord(userId int) (*word, error) {
-	row := db.QueryRow("SELECT word_id FROM questions WHERE user_id=$1", userId)
+func (crud *crud) getLastWord(userId int) (*word, error) {
+	row := crud.db.QueryRow("SELECT word_id FROM questions WHERE user_id=$1", userId)
 	var wordId int
 	err := row.Scan(&wordId)
 	if err != nil {
 		return nil, err
 	}
 
-	return getWord(wordId)
+	return crud.getWord(wordId)
 }
 
-func getRandomWord(userId int) (*word, error) {
+func (crud *crud) getRandomWord(userId int) (*word, error) {
 	var wordId int
 
-	row := db.QueryRow("SELECT word_id FROM user_words WHERE user_id=$1 OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1", userId)
+	row := crud.db.QueryRow("SELECT word_id FROM user_words WHERE user_id=$1 OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1", userId)
 	err := row.Scan(&wordId)
 	if err != nil {
 		fmt.Printf("shit")
 		return nil, err
 	}
 
-	return getWord(wordId)
+	return crud.getWord(wordId)
 }
 
-func getWord(wordId int) (*word, error) {
-	wordRow := db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
+func (crud *crud) getWord(wordId int) (*word, error) {
+	wordRow := crud.db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
 
 	w := word{}
 	var langId int
@@ -140,7 +170,7 @@ func getWord(wordId int) (*word, error) {
 		return nil, fmt.Errorf("Random word row scan: %v", err.Error())
 	}
 
-	l, err := getLang(langId)
+	l, err := crud.getLang(langId)
 	if err != nil {
 		return nil, err
 	}
@@ -149,8 +179,8 @@ func getWord(wordId int) (*word, error) {
 	return &w, nil
 }
 
-func getUser(id int) (*user, error) {
-	userRow := db.QueryRow("SELECT * FROM users WHERE id=$1", id)
+func (crud *crud) getUser(id int) (*user, error) {
+	userRow := crud.db.QueryRow("SELECT * FROM users WHERE id=$1", id)
 	u := user{}
 	var langId int
 	err := userRow.Scan(&u.id, &langId, &u.currentState)
@@ -159,7 +189,7 @@ func getUser(id int) (*user, error) {
 		return nil, err
 	}
 
-	l, err := getLang(langId)
+	l, err := crud.getLang(langId)
 	if err != nil {
 		return nil, err
 	}
@@ -169,8 +199,8 @@ func getUser(id int) (*user, error) {
 	return &u, nil
 }
 
-func getLang(id int) (*lang, error) {
-	langRow := db.QueryRow("SELECT * FROM languages WHERE id=$1", id)
+func (crud *crud) getLang(id int) (*lang, error) {
+	langRow := crud.db.QueryRow("SELECT * FROM languages WHERE id=$1", id)
 	l := lang{}
 	err := langRow.Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
 	if err != nil {
@@ -179,10 +209,10 @@ func getLang(id int) (*lang, error) {
 	return &l, nil
 }
 
-func getLanguages() ([]lang, error) {
+func (crud *crud) getLanguages() ([]lang, error) {
 
 	log.Println("query langs count")
-	row := db.QueryRow("SELECT COUNT(*) FROM languages")
+	row := crud.db.QueryRow("SELECT COUNT(*) FROM languages")
 	var count int
 	err := row.Scan(&count)
 	if err != nil {
@@ -192,7 +222,7 @@ func getLanguages() ([]lang, error) {
 	langs := make([]lang, 0, count)
 
 	log.Println("query languages")
-	rows, err := db.Query("SELECT * FROM languages")
+	rows, err := crud.db.Query("SELECT * FROM languages")
 	if err != nil {
 		return nil, err
 	}
@@ -212,25 +242,25 @@ func getLanguages() ([]lang, error) {
 	return langs, nil
 }
 
-func getLanguageWithCode(code string) (*lang, error) {
+func (crud *crud) getLanguageWithCode(code string) (*lang, error) {
 	l := lang{}
-	err := db.QueryRow("SELECT * FROM languages WHERE code=$1", code).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+	err := crud.db.QueryRow("SELECT * FROM languages WHERE code=$1", code).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
 	if err != nil {
 		return nil, fmt.Errorf("lang with code: %v", err.Error())
 	}
 	return &l, nil
 }
 
-func writeAnswer(r guessResult) error {
+func (crud *crud) persistAnswer(r guessResult) error {
 
 	p := r.params
 
-	tx, err := db.Begin()
+	tx, err := crud.db.Begin()
 	if err != nil {
 		return err
 	}
 
-	lang, err := getUserLanguage(r.params.userId)
+	lang, err := crud.getUserLanguage(r.params.userId)
 	if err != nil {
 		//TODO: error handling
 		_ = tx.Rollback()

@@ -12,10 +12,10 @@ import (
 	"strconv"
 )
 
-func downloadAndMigrateKindleSQLite(url string, userId int) error {
+func (crud *crud) downloadAndMigrateKindleSQLite(url string, userId int) error {
 	path := strconv.Itoa(userId) + "_vocab.db"
 
-	err := updateUserState(userId, migrationInProgress)
+	err := crud.updateUserState(userId, migrationInProgress)
 	if err != nil {
 		return fmt.Errorf("downloading document: %v", err.Error())
 	}
@@ -31,12 +31,12 @@ func downloadAndMigrateKindleSQLite(url string, userId int) error {
 		}
 	}()
 
-	err = migrateFromKindleSQLite(path, userId)
+	err = crud.migrateFromKindleSQLite(path, userId)
 	if err != nil {
 		return fmt.Errorf("downloading document: %v", err.Error())
 	}
 
-	err = updateUserState(userId, readyForQuestion)
+	err = crud.updateUserState(userId, readyForQuestion)
 	if err != nil {
 		return fmt.Errorf("downloading document: %v", err.Error())
 	}
@@ -44,7 +44,7 @@ func downloadAndMigrateKindleSQLite(url string, userId int) error {
 	return nil
 }
 
-func migrateFromKindleSQLite(sqlitePath string, userId int) error {
+func (crud *crud) migrateFromKindleSQLite(sqlitePath string, userId int) error {
 	sqliteDB, err := sql.Open("sqlite3", sqlitePath)
 	if err != nil {
 		return fmt.Errorf("db migration: %v", err.Error())
@@ -52,7 +52,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 	defer sqliteDB.Close()
 
 	log.Println("get languages")
-	langs, err := getLanguages()
+	langs, err := crud.getLanguages()
 	if err != nil {
 		return fmt.Errorf("get languages: %v", err.Error())
 	}
@@ -80,7 +80,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int) error {
 			continue
 		}
 
-		tx, err := db.Begin()
+		tx, err := crud.db.Begin()
 		if err != nil {
 			return fmt.Errorf("postgre tx begin: %v\n", err.Error())
 		}
