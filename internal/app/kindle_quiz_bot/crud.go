@@ -153,7 +153,7 @@ func getUser(id int) (*user, error) {
 	userRow := db.QueryRow("SELECT * FROM users WHERE id=$1", id)
 	u := user{}
 	var langId int
-	err := userRow.Scan(&id, &langId, &u.currentState)
+	err := userRow.Scan(&u.id, &langId, &u.currentState)
 
 	if err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func writeAnswer(r guessResult) error {
 
 	var queryStr = fmt.Sprintf("UPDATE user_words SET %s = %[1]s + 1 WHERE word_id = %d", field, p.word.id)
 
-	_, err = tx.Exec(queryStr, p.word.id)
+	_, err = tx.Exec(queryStr)
 
 	if err != nil {
 		return fmt.Errorf("write answer: %s", err.Error())
