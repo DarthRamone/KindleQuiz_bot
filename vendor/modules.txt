@@ -1,0 +1,28 @@
+# github.com/DarthRamone/gtranslate v0.0.0-20190723124842-33870c785bad
+github.com/DarthRamone/gtranslate
+# github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
+github.com/go-telegram-bot-api/telegram-bot-api
+# github.com/lib/pq v1.2.0
+github.com/lib/pq
+github.com/lib/pq/oid
+github.com/lib/pq/scram
+# github.com/mattn/go-sqlite3 v1.11.0
+github.com/mattn/go-sqlite3
+# github.com/robertkrimen/otto v0.0.0-20180617131154-15f95af6e78d
+github.com/robertkrimen/otto
+github.com/robertkrimen/otto/ast
+github.com/robertkrimen/otto/dbg
+github.com/robertkrimen/otto/file
+github.com/robertkrimen/otto/parser
+github.com/robertkrimen/otto/registry
+github.com/robertkrimen/otto/token
+# github.com/technoweenie/multipartstreamer v1.0.1
+github.com/technoweenie/multipartstreamer
+# golang.org/x/text v0.3.2
+golang.org/x/text/language
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+# gopkg.in/sourcemap.v1 v1.0.5
+gopkg.in/sourcemap.v1
+gopkg.in/sourcemap.v1/base64vlq

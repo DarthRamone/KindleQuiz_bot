@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	quiz "github.com/DarthRamone/KindleQuiz_bot/internal/app/kindle_quiz_bot"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
-	quiz "kindle_vocab_quiz/internal/app/kindle_quiz_bot"
 	"log"
 )
 
