@@ -1,10 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 )
 
@@ -12,7 +10,7 @@ type botAPI struct {
 	*tg.BotAPI
 }
 
-var db *sql.DB
+
 var bot = botAPI{}
 
 var token = flag.String("token", "", "telegram API bot token")
@@ -21,28 +19,17 @@ func main() {
 
 	flag.Parse()
 
-	var err error
-
-	//Initialize PostgreSQL connection
-	connStr := "user=postgres dbname=vocab port=32770 sslmode=disable"
-
-	db, err = sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatalf("Couldn't connect to database: %v", err.Error())
-	}
-	defer db.Close()
-
 	//Initialize quiz
 	StartListen(_messageSender(sendMessageToUser))
+	defer StopListen()
 
 	//Initialize telegram bot
+	var err error
 	bot.BotAPI, err = tg.NewBotAPI(*token)
 
 	if err != nil {
 		log.Panic(err)
 	}
-
-	//bot.Debug = true
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
@@ -53,6 +40,10 @@ func main() {
 
 	for update := range updates {
 		if update.Message == nil { // ignore any non-Message Updates
+			continue
+		}
+
+		if Stopped() {
 			continue
 		}
 

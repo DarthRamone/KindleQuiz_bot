@@ -250,8 +250,6 @@ func writeAnswer(r guessResult) error {
 
 	_, err = tx.Exec(queryStr, p.word.id)
 
-	fmt.Printf("%s\n", queryStr)
-
 	if err != nil {
 		return fmt.Errorf("write answer: %s", err.Error())
 	}

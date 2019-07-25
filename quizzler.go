@@ -51,14 +51,27 @@ var sender messageSender
 
 var results = make(chan guessResult)
 var requests = make(chan guessRequest)
+var stop = make(chan struct{})
 
 func StartListen(s messageSender) {
+
+	if db == nil {
+		err := connectToDB()
+		if err != nil {
+			log.Fatalf("db connect: %v", err.Error())
+		}
+	}
 
 	sender = s
 
 	go func() {
 		for {
 			select {
+			case <-stop:
+				for range results {
+				}
+				for range requests {
+				}
 			case req := <-requests:
 				go func() {
 					ask(req)
@@ -70,6 +83,11 @@ func StartListen(s messageSender) {
 			}
 		}
 	}()
+}
+
+func StopListen() {
+	db.Close()
+	close(stop)
 }
 
 func RequestWord(userId int) {
@@ -302,4 +320,27 @@ func setLanguage(u user, lc string) {
 func showMigrationInProgressWarn(userId int) {
 	//TODO: error handle
 	_ = sender.sendMessage(userId, "Migration still in progress.")
+}
+
+func Stopped() bool {
+	select {
+	case <- stop:
+		return true
+	default:
+		return false
+	}
+}
+
+var db *sql.DB
+
+func connectToDB() error {
+	connStr := "user=postgres dbname=vocab port=32770 sslmode=disable"
+
+	var err error
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
