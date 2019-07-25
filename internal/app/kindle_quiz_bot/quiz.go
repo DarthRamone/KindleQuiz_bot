@@ -10,12 +10,15 @@ import (
 	"time"
 )
 
-var db *sql.DB
-var sender MessageSender
-var results = make(chan guessResult)
-var requests = make(chan guessRequest)
-var cancel context.CancelFunc
-var ctx context.Context
+var (
+	db *sql.DB
+	sender MessageSender
+	results = make(chan guessResult)
+	requests = make(chan guessRequest)
+	cancel context.CancelFunc
+	ctx context.Context
+)
+
 
 type guessRequest struct {
 	userId int
@@ -55,25 +58,6 @@ type lang struct {
 
 type MessageSender interface {
 	SendMessage(userId int, text string) error
-}
-
-
-func tellResult(r guessResult) {
-	if r.correct() {
-		_ = sender.SendMessage(r.params.userId, "Your answer is correct")
-	} else {
-		_ = sender.SendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
-	}
-}
-
-func ask(r guessRequest) {
-	w := r.word
-	q := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
-	_ = sender.SendMessage(r.userId, q) //TODO: error handle
-}
-
-func (t *guessResult) correct() bool {
-	return compareWords(t.params.guess, t.translation)
 }
 
 func StartListen(s MessageSender) {
@@ -250,6 +234,16 @@ func ProcessMessage(userId int, text, documentUrl string) {
 	}
 }
 
+func Stopped() bool {
+	select {
+	case <- ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+
 func guessWord(usr user, guess string) {
 
 	go func(u user) {
@@ -348,15 +342,6 @@ func showMigrationInProgressWarn(userId int) {
 	_ = sender.SendMessage(userId, "Migration still in progress.")
 }
 
-func Stopped() bool {
-	select {
-	case <- ctx.Done():
-		return true
-	default:
-		return false
-	}
-}
-
 func connectToDB() error {
 	connStr := "user=postgres dbname=vocab port=32770 sslmode=disable"
 
@@ -367,4 +352,23 @@ func connectToDB() error {
 	}
 
 	return nil
+}
+
+
+func tellResult(r guessResult) {
+	if r.correct() {
+		_ = sender.SendMessage(r.params.userId, "Your answer is correct")
+	} else {
+		_ = sender.SendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
+	}
+}
+
+func ask(r guessRequest) {
+	w := r.word
+	q := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
+	_ = sender.SendMessage(r.userId, q) //TODO: error handle
+}
+
+func (t *guessResult) correct() bool {
+	return compareWords(t.params.guess, t.translation)
 }
