@@ -10,7 +10,6 @@ type botAPI struct {
 	*tg.BotAPI
 }
 
-
 var bot = botAPI{}
 
 var token = flag.String("token", "", "telegram API bot token")
@@ -65,8 +64,9 @@ func main() {
 		case "/cancel":
 			CancelOperation(userId)
 		default:
-			if update.Message.Document != nil {
-				go func(id int) {
+			go func(upd tg.Update) {
+				userId := update.Message.From.ID
+				if update.Message.Document != nil {
 
 					url, err := bot.GetFileDirectURL(update.Message.Document.FileID)
 					if err != nil {
@@ -74,12 +74,12 @@ func main() {
 						return //TODO: Error handling
 					}
 
-					ProcessMessage(id, update.Message.Text, url)
-				}(userId)
+					ProcessMessage(userId, update.Message.Text, url)
 
-			} else {
-				ProcessMessage(userId, update.Message.Text, "")
-			}
+				} else {
+					ProcessMessage(userId, update.Message.Text, "")
+				}
+			}(update)
 		}
 	}
 }
