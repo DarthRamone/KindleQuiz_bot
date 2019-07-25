@@ -3,7 +3,6 @@ package kindle_quiz_bot
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 	"io"
 	"log"
