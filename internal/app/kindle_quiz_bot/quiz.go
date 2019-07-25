@@ -25,7 +25,7 @@ type Quiz interface {
 
 type quiz struct {
 	*crud
-	sender   MessageSender
+	sender   messageSender
 	requests chan guessRequest
 	results  chan guessResult
 	cancel   context.CancelFunc
@@ -68,15 +68,8 @@ type lang struct {
 	localized_name string
 }
 
-type MessageSender interface {
+type messageSender interface {
 	SendMessage(userId int, text string) error
-}
-
-func NewQuiz(s MessageSender) Quiz {
-	var req = make(chan guessRequest)
-	var res = make(chan guessResult)
-	var q Quiz = &quiz{sender: s, requests: req, results: res}
-	return q
 }
 
 func (q *quiz) StartListen() {
@@ -249,6 +242,13 @@ func (q *quiz) Stopped() bool {
 	default:
 		return false
 	}
+}
+
+func newQuiz(s messageSender) Quiz {
+	var req = make(chan guessRequest)
+	var res = make(chan guessResult)
+	var q Quiz = &quiz{sender: s, requests: req, results: res}
+	return q
 }
 
 func (q *quiz) guessWord(usr user, guess string) {
