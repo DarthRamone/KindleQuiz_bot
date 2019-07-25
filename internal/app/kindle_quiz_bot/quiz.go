@@ -9,23 +9,11 @@ import (
 	"time"
 )
 
-type MessageSender interface {
-	SendMessage(userId int, text string) error
-}
-
-func tellResult(r guessResult) {
-	if r.correct() {
-		_ = sender.SendMessage(r.params.userId, "Your answer is correct")
-	} else {
-		_ = sender.SendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
-	}
-}
-
-func ask(r guessRequest) {
-	w := r.word
-	q := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
-	_ = sender.SendMessage(r.userId, q) //TODO: error handle
-}
+var db *sql.DB
+var sender MessageSender
+var results = make(chan guessResult)
+var requests = make(chan guessRequest)
+var stop = make(chan struct{})
 
 type guessRequest struct {
 	userId int
@@ -43,15 +31,48 @@ type guessResult struct {
 	translation string
 }
 
+type word struct {
+	id   int
+	word string
+	stem string
+	lang *lang
+}
+
+type user struct {
+	id              int
+	currentState    int
+	currentLanguage *lang
+}
+
+type lang struct {
+	id             int
+	code           string
+	english_name   string
+	localized_name string
+}
+
+type MessageSender interface {
+	SendMessage(userId int, text string) error
+}
+
+
+func tellResult(r guessResult) {
+	if r.correct() {
+		_ = sender.SendMessage(r.params.userId, "Your answer is correct")
+	} else {
+		_ = sender.SendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
+	}
+}
+
+func ask(r guessRequest) {
+	w := r.word
+	q := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
+	_ = sender.SendMessage(r.userId, q) //TODO: error handle
+}
+
 func (t *guessResult) correct() bool {
 	return compareWords(t.params.guess, t.translation)
 }
-
-var sender MessageSender
-
-var results = make(chan guessResult)
-var requests = make(chan guessRequest)
-var stop = make(chan struct{})
 
 func StartListen(s MessageSender) {
 
@@ -330,8 +351,6 @@ func Stopped() bool {
 		return false
 	}
 }
-
-var db *sql.DB
 
 func connectToDB() error {
 	connStr := "user=postgres dbname=vocab port=32770 sslmode=disable"
