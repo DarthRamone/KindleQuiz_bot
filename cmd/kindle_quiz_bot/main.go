@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
+	quiz "kindle_vocab_quiz/internal/app/kindle_quiz_bot"
 	"log"
 )
 
@@ -19,8 +20,8 @@ func main() {
 	flag.Parse()
 
 	//Initialize quiz
-	StartListen(_messageSender(sendMessageToUser))
-	defer StopListen()
+	quiz.StartListen(_messageSender(sendMessageToUser))
+	defer quiz.StopListen()
 
 	//Initialize telegram bot
 	var err error
@@ -42,7 +43,7 @@ func main() {
 			continue
 		}
 
-		if Stopped() {
+		if quiz.Stopped() {
 			continue
 		}
 
@@ -52,17 +53,17 @@ func main() {
 
 		switch update.Message.Text {
 		case "/start":
-			Greetings(userId)
+			quiz.Greetings(userId)
 		case "/quiz":
-			RequestWord(userId)
+			quiz.RequestWord(userId)
 		case "/help":
-			ShowHelp(userId)
+			quiz.ShowHelp(userId)
 		case "/set_lang":
-			SelectLang(userId)
+			quiz.SelectLang(userId)
 		case "/upload":
-			AwaitUpload(userId)
+			quiz.AwaitUpload(userId)
 		case "/cancel":
-			CancelOperation(userId)
+			quiz.CancelOperation(userId)
 		default:
 			go func(upd tg.Update) {
 				userId := update.Message.From.ID
@@ -74,10 +75,10 @@ func main() {
 						return //TODO: Error handling
 					}
 
-					ProcessMessage(userId, update.Message.Text, url)
+					quiz.ProcessMessage(userId, update.Message.Text, url)
 
 				} else {
-					ProcessMessage(userId, update.Message.Text, "")
+					quiz.ProcessMessage(userId, update.Message.Text, "")
 				}
 			}(update)
 		}
@@ -96,6 +97,6 @@ func sendMessageToUser(userId int, text string) error {
 
 type _messageSender func(int, string) error
 
-func (s _messageSender) sendMessage(userId int, text string) error {
+func (s _messageSender) SendMessage(userId int, text string) error {
 	return s(userId, text)
 }

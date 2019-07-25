@@ -1,4 +1,4 @@
-package main
+package kindle_quiz_bot
 
 import (
 	"database/sql"
@@ -9,22 +9,22 @@ import (
 	"time"
 )
 
-type messageSender interface {
-	sendMessage(userId int, text string) error
+type MessageSender interface {
+	SendMessage(userId int, text string) error
 }
 
 func tellResult(r guessResult) {
 	if r.correct() {
-		_ = sender.sendMessage(r.params.userId, "Your answer is correct")
+		_ = sender.SendMessage(r.params.userId, "Your answer is correct")
 	} else {
-		_ = sender.sendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
+		_ = sender.SendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
 	}
 }
 
 func ask(r guessRequest) {
 	w := r.word
 	q := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
-	_ = sender.sendMessage(r.userId, q) //TODO: error handle
+	_ = sender.SendMessage(r.userId, q) //TODO: error handle
 }
 
 type guessRequest struct {
@@ -47,13 +47,13 @@ func (t *guessResult) correct() bool {
 	return compareWords(t.params.guess, t.translation)
 }
 
-var sender messageSender
+var sender MessageSender
 
 var results = make(chan guessResult)
 var requests = make(chan guessRequest)
 var stop = make(chan struct{})
 
-func StartListen(s messageSender) {
+func StartListen(s MessageSender) {
 
 	if db == nil {
 		err := connectToDB()
@@ -99,14 +99,14 @@ func RequestWord(userId int) {
 
 		if err == sql.ErrNoRows {
 			//TODO: error handle
-			_ = sender.sendMessage(id, "No words found. Please run /upload and follow instructions")
+			_ = sender.SendMessage(id, "No words found. Please run /upload and follow instructions")
 			return
 		}
 
 		if err != nil {
 			log.Println("report error: random word")
 			//TODO Error handle
-			_ = sender.sendMessage(id, err.Error())
+			_ = sender.SendMessage(id, err.Error())
 			return
 		}
 
@@ -114,7 +114,7 @@ func RequestWord(userId int) {
 		if err != nil {
 			log.Println("report error: set last word")
 			//TODO Error handle
-			_ = sender.sendMessage(id, err.Error())
+			_ = sender.SendMessage(id, err.Error())
 			return
 		}
 
@@ -138,7 +138,7 @@ func ShowHelp(userId int) {
 		"/cancel - cancel current operation\n"
 
 	//TODO: error handling
-	_ = sender.sendMessage(userId, msg)
+	_ = sender.SendMessage(userId, msg)
 }
 
 func Greetings(userId int) {
@@ -146,7 +146,7 @@ func Greetings(userId int) {
 		"Next run /quiz and have some fun, idk. You can ask me for /help also."
 
 	//TODO: error handling
-	_ = sender.sendMessage(userId, msg)
+	_ = sender.SendMessage(userId, msg)
 }
 
 func SelectLang(userId int) {
@@ -166,7 +166,7 @@ func SelectLang(userId int) {
 	}
 
 	//TODO: error handling
-	_ = sender.sendMessage(userId, msg)
+	_ = sender.SendMessage(userId, msg)
 }
 
 func AwaitUpload(userId int) {
@@ -176,7 +176,7 @@ func AwaitUpload(userId int) {
 	}
 
 	//TODO: error handling
-	_ = sender.sendMessage(userId, "Now send vocab.db file exported from your kindle")
+	_ = sender.SendMessage(userId, "Now send vocab.db file exported from your kindle")
 }
 
 func CancelOperation(userId int) {
@@ -188,7 +188,7 @@ func CancelOperation(userId int) {
 
 	if user.currentState == readyForQuestion {
 		//TODO error handle
-		_ = sender.sendMessage(userId, "Nothing to cancel")
+		_ = sender.SendMessage(userId, "Nothing to cancel")
 		return
 	}
 
@@ -198,7 +198,7 @@ func CancelOperation(userId int) {
 	}
 
 	//TODO: error handle
-	_ = sender.sendMessage(userId, "Done")
+	_ = sender.SendMessage(userId, "Done")
 }
 
 func ProcessMessage(userId int, text, documentUrl string) {
@@ -231,14 +231,14 @@ func guessWord(usr user, guess string) {
 		word, err := getLastWord(u.id)
 		if err != nil {
 			//TODO Error handle
-			_ = sender.sendMessage(u.id, err.Error())
+			_ = sender.SendMessage(u.id, err.Error())
 			return
 		}
 
 		translated, err := translateWord(*word, u.currentLanguage)
 		if err != nil {
 			//TODO Error handle
-			_ = sender.sendMessage(u.id, err.Error())
+			_ = sender.SendMessage(u.id, err.Error())
 			return
 		}
 
@@ -265,12 +265,12 @@ func tryToMigrate(userId int, url string) {
 	err := downloadAndMigrateKindleSQLite(url, userId)
 	if err != nil {
 		//TODO: error handle
-		_ = sender.sendMessage(userId, "Looks like db file in incorrect format. Try again.")
+		_ = sender.SendMessage(userId, "Looks like db file in incorrect format. Try again.")
 		return
 	}
 
 	//TODO: error handle
-	_ = sender.sendMessage(userId, "Migration completed. Press /quiz to start a game.")
+	_ = sender.SendMessage(userId, "Migration completed. Press /quiz to start a game.")
 }
 
 func translateWord(w word, dst *lang) (string, error) {
@@ -304,7 +304,7 @@ func setLanguage(u user, lc string) {
 	l, err := getLanguageWithCode(lc)
 	if err != nil {
 		//TODO: error handle
-		_ = sender.sendMessage(u.id, "Invalid language code")
+		_ = sender.SendMessage(u.id, "Invalid language code")
 		return
 	}
 
@@ -314,12 +314,12 @@ func setLanguage(u user, lc string) {
 	}
 
 	//TODO: error handle
-	_ = sender.sendMessage(u.id, fmt.Sprintf("Language changed to: %s", l.localized_name))
+	_ = sender.SendMessage(u.id, fmt.Sprintf("Language changed to: %s", l.localized_name))
 }
 
 func showMigrationInProgressWarn(userId int) {
 	//TODO: error handle
-	_ = sender.sendMessage(userId, "Migration still in progress.")
+	_ = sender.SendMessage(userId, "Migration still in progress.")
 }
 
 func Stopped() bool {

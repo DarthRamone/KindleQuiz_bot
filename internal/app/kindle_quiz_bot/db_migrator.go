@@ -1,4 +1,4 @@
-package main
+package kindle_quiz_bot
 
 import (
 	"database/sql"

@@ -1,4 +1,4 @@
-package main
+package kindle_quiz_bot
 
 import (
 	"fmt"
@@ -153,7 +153,7 @@ func getUser(id int) (*user, error) {
 	userRow := db.QueryRow("SELECT * FROM users WHERE id=$1", id)
 	u := user{}
 	var langId int
-	err := userRow.Scan(&u.id, &langId, &u.currentState)
+	err := userRow.Scan(&id, &langId, &u.currentState)
 
 	if err != nil {
 		return nil, err
