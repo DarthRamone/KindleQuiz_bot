@@ -46,7 +46,7 @@ func main() {
 	}
 
 	//Initialize quiz
-	quizStartListen(_messageSender(sendMessageToUser))
+	StartListen(_messageSender(sendMessageToUser))
 
 	//Initialize telegram bot
 	bot.BotAPI, err = tg.NewBotAPI(*token)
@@ -89,7 +89,7 @@ func main() {
 		case "/start":
 			greetings(*user)
 		case "/quiz":
-			requestWord(*user)
+			RequestWord(user.id)
 		case "/help":
 			showHelp(*user)
 		case "/set_lang":
@@ -114,7 +114,7 @@ func processNonRouteUpdate(u user, update tg.Update) {
 	case readyForQuestion:
 		showHelp(u)
 	case waitingAnswer:
-		guessWord(u, update.Message.Text)
+		GuessWord(u.id, update.Message.Text)
 	case migrationInProgress:
 		showMigrationInProgressWarn(u)
 	case awaitingLanguage:

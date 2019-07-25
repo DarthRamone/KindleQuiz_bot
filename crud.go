@@ -17,6 +17,19 @@ const (
 	awaitingLanguage
 )
 
+func getUserLanguage(userId int) (*lang, error) {
+	l := lang{}
+	err := db.QueryRow("" +
+		"SELECT * FROM languages " +
+		"WHERE id=" +
+			"(SELECT current_lang FROM users WHERE id=$1)", userId).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &l, nil
+}
+
 func getAllUserIds() ([]int, error) {
 	var count int
 	err := db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
@@ -217,9 +230,14 @@ func writeAnswer(r guessResult) error {
 		return err
 	}
 
+	lang, err := getUserLanguage(r.params.userId)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.Exec(""+
 		"INSERT INTO answers (word_id, user_id, correct, user_lang, guess)"+
-		"VALUES ($1, $2, $3, $4, $5)", p.word.id, p.user.id, r.correct(), p.user.currentLanguage.id, p.guess)
+		"VALUES ($1, $2, $3, $4, $5)", p.word.id, p.userId, r.correct(), lang.id, p.guess)
 
 	var field string
 	if r.correct() {

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
-	"io"
 	"log"
 	"strings"
 	"time"
@@ -14,26 +13,21 @@ type messageSender interface {
 	sendMessage(userId int, text string) error
 }
 
-type quizPlayer interface {
-	io.Writer
-	ask(w word)
-	tellResult(r guessResult)
-	reportError(err error)
-}
-
-func (u user) ask(w word) {
-	_, _ = fmt.Fprintf(u, "Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
-}
-
-func (u user) tellResult(r guessResult) {
-
+func tellResult(r guessResult) {
 	if r.correct() {
-		_, _ = fmt.Fprintf(u, "Your answer is correct;\n")
+		_ = sender.sendMessage(r.params.userId, "Your answer is correct")
 	} else {
-		_, _ = fmt.Fprintf(u, "Your answer is incorrect. Correct answer: %s\n", r.translation)
+		_ = sender.sendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
 	}
-
 }
+
+func ask(r guessRequest) {
+	w := r.word
+	q := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
+	_ = sender.sendMessage(r.userId, q) //TODO: error handle
+}
+
+
 
 func (u user) reportError(err error) {
 	_, _ = fmt.Fprintf(u, err.Error())
@@ -52,36 +46,20 @@ func (u user) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-type asker interface {
-	ask()
-}
-
 type guessRequest struct {
-	user quizPlayer
-	word word
-}
-
-func (r guessRequest) ask() {
-	r.user.ask(r.word)
+	userId int
+	word   word
 }
 
 type guessParams struct {
-	word  word
-	guess string
-	user  user
-}
-
-type resultTeller interface {
-	tellResult()
+	word   word
+	guess  string
+	userId int
 }
 
 type guessResult struct {
 	params      guessParams
 	translation string
-}
-
-func (g guessResult) tellResult() {
-	g.params.user.tellResult(g)
 }
 
 func (t *guessResult) correct() bool {
@@ -90,10 +68,10 @@ func (t *guessResult) correct() bool {
 
 var sender messageSender
 
-var results = make(chan resultTeller)
-var requests = make(chan asker)
+var results = make(chan guessResult)
+var requests = make(chan guessRequest)
 
-func quizStartListen(s messageSender) {
+func StartListen(s messageSender) {
 
 	sender = s
 
@@ -102,71 +80,81 @@ func quizStartListen(s messageSender) {
 			select {
 			case req := <-requests:
 				go func() {
-					req.ask()
+					ask(req)
 				}()
 			case res := <-results:
 				go func() {
-					res.tellResult()
+					tellResult(res)
 				}()
 			}
 		}
 	}()
 }
 
-func requestWord(u user) {
-	go func(p quizPlayer) {
+func RequestWord(userId int) {
+	go func(id int) {
 
 		log.Println("request word")
 
-		w, err := getRandomWord(u.id)
+		w, err := getRandomWord(userId)
 
 		if err == sql.ErrNoRows {
-			u.reportError(fmt.Errorf("No words found. Please run /upload and follow instructions"))
+			//TODO: error handle
+			_ = sender.sendMessage(id, "No words found. Please run /upload and follow instructions")
 			return
 		}
 
 		if err != nil {
 			log.Println("report error: random word")
-			u.reportError(err)
+			//TODO Error handle
+			_ = sender.sendMessage(id, err.Error())
 			return
 		}
 
-		err = setLastWord(u.id, *w)
+		err = setLastWord(id, *w)
 		if err != nil {
 			log.Println("report error: set last word")
-			u.reportError(err)
+			//TODO Error handle
+			_ = sender.sendMessage(id, err.Error())
 			return
 		}
 
 		log.Println("send request")
-		r := guessRequest{p, *w}
+		r := guessRequest{id, *w}
 		requests <- r
 
-		err = updateUserState(u.id, waitingAnswer)
+		err = updateUserState(id, waitingAnswer)
 		if err != nil {
 			//TODO: what?
 		}
-	}(u)
+	}(userId)
 }
 
-func guessWord(u user, guess string) {
-	go func() {
+func GuessWord(userId int, guess string) {
+	go func(id int) {
 
-		word, err := getLastWord(u.id)
+		word, err := getLastWord(id)
 		if err != nil {
-			u.reportError(err)
+			//TODO Error handle
+			_ = sender.sendMessage(id, err.Error())
 			return
 		}
 
-		translated, err := translateWord(*word, u.currentLanguage)
+		lang, err := getUserLanguage(id)
 		if err != nil {
-			u.reportError(err)
+			return //TODO: error handle
+		}
+
+		translated, err := translateWord(*word, lang)
+		if err != nil {
+			//TODO Error handle
+			_ = sender.sendMessage(id, err.Error())
 			return
 		}
 
-		err = deleteLastWord(u.id)
+		err = deleteLastWord(id)
 
-		p := guessParams{*word, guess, u}
+		p := guessParams{*word, guess, id}
 		r := guessResult{p, translated}
 		results <- r
 
@@ -175,11 +163,11 @@ func guessWord(u user, guess string) {
 			log.Printf("Failed to write answer: %v\n", err.Error())
 		}
 
-		err = updateUserState(u.id, readyForQuestion)
+		err = updateUserState(id, readyForQuestion)
 		if err != nil {
 			//TODO: what?
 		}
-	}()
+	}(userId)
 }
 
 func translateWord(w word, dst *lang) (string, error) {
