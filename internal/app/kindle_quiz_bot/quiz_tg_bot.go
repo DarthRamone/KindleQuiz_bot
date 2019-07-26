@@ -12,7 +12,7 @@ type QuizTelegramBot interface {
 
 type quizTelegramBot struct {
 	*tg.BotAPI
-	q *Quiz
+	q Quiz
 }
 
 func NewQuizTelegramBot(token string) (QuizTelegramBot, error) {
@@ -29,8 +29,7 @@ func NewQuizTelegramBot(token string) (QuizTelegramBot, error) {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	q := newQuiz(&bot)
-	bot.q = &q
+	bot.q = newQuiz(&bot)
 
 	quizBot = &bot
 
@@ -59,7 +58,7 @@ func (bot quizTelegramBot) Start() error {
 		return err
 	}
 
-	q := *bot.q
+	q := bot.q
 
 	for update := range updates {
 		if update.Message == nil { // ignore any non-Message Updates
