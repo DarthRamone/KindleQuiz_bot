@@ -29,7 +29,7 @@ func NewQuizTelegramBot(token string) (QuizTelegramBot, error) {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	bot.q = newQuiz(&bot)
+	bot.q = NewQuiz(&bot)
 
 	quizBot = &bot
 

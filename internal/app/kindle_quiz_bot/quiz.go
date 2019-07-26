@@ -20,8 +20,8 @@ type Quiz interface {
 }
 
 type quiz struct {
-	crud     *crud
-	sender   messageSender
+	crud   *crud
+	sender MessageSender
 }
 
 type guessRequest struct {
@@ -60,7 +60,7 @@ type lang struct {
 	localized_name string
 }
 
-type messageSender interface {
+type MessageSender interface {
 	SendMessage(userId int, text string) error
 }
 
@@ -192,7 +192,7 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 	}
 }
 
-func newQuiz(s messageSender) Quiz {
+func NewQuiz(s MessageSender) Quiz {
 	var quizResult Quiz = &quiz{sender: s}
 	quiz := quiz{sender: s}
 	quizResult = &quiz
