@@ -71,13 +71,6 @@ type messageSender interface {
 }
 
 func (q *quiz) StartListen() {
-	if q.crud == nil {
-		err := q.connectToDB()
-		if err != nil {
-			log.Fatalf("db connect: %v", err.Error())
-		}
-	}
-
 	q.ctx = context.Background()
 	q.ctx, q.cancel = context.WithCancel(q.ctx)
 }
@@ -222,8 +215,16 @@ func (q *quiz) Stopped() bool {
 }
 
 func newQuiz(s messageSender) Quiz {
-	var q Quiz = &quiz{sender: s}
-	return q
+	var quizResult Quiz = &quiz{sender: s}
+	quiz := quiz{sender: s}
+	quizResult = &quiz
+
+	err := quiz.connectToDB()
+	if err != nil {
+		log.Fatalf("db connect: %v", err.Error())
+	}
+
+	return quizResult
 }
 
 func (q *quiz) guessWord(usr user, guess string) {
