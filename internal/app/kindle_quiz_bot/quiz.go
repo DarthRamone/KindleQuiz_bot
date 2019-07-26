@@ -86,21 +86,9 @@ func (q *quiz) RequestWord(userId int) {
 			return
 		}
 
-		err = q.crud.setLastWord(id, *w)
-		if err != nil {
-			log.Println("report error: set last word")
-			q.sendMessage(id, err.Error())
-			return
-		}
-
 		log.Println("send request")
 		r := guessRequest{id, *w}
 		q.ask(r)
-
-		err = q.crud.updateUserState(id, waitingAnswer)
-		if err != nil {
-			//TODO: what?
-		}
 	}(userId)
 }
 

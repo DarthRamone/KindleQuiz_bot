@@ -156,15 +156,34 @@ func (crud *crud) getLastWord(userId int) (*word, error) {
 func (crud *crud) getRandomWord(userId int) (*word, error) {
 	var wordId int
 
-	row := crud.db.QueryRow("SELECT word_id FROM user_words WHERE user_id=$1 OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1", userId)
-	err := row.Scan(&wordId)
+	tx, err := crud.db.Begin()
 
+	if err != nil {
+		return nil, err
+	}
+
+	row := tx.QueryRow("SELECT word_id FROM user_words WHERE user_id=$1 OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1", userId)
+	err = row.Scan(&wordId)
 	if err == sql.ErrNoRows {
+		_ = tx.Rollback()
 		return nil, noWordsFound
 	}
 
+	_, err = tx.Exec("INSERT INTO questions (user_id, word_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET word_id=$2", userId, wordId)
 	if err != nil {
-		fmt.Printf("shit")
+		_ = tx.Rollback()
+		return nil, err
+	}
+
+	_, err = tx.Exec("UPDATE users SET current_state=$1 WHERE id=$2", waitingAnswer, userId)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
 
