@@ -24,7 +24,7 @@ type Quiz interface {
 }
 
 type quiz struct {
-	*crud
+	crud     *crud
 	sender   messageSender
 	cancel   context.CancelFunc
 	ctx      context.Context
@@ -92,7 +92,7 @@ func (q *quiz) RequestWord(userId int) {
 
 		log.Println("request word")
 
-		w, err := q.getRandomWord(userId)
+		w, err := q.crud.getRandomWord(userId)
 
 		if err == sql.ErrNoRows {
 			//TODO: error handle
@@ -106,7 +106,7 @@ func (q *quiz) RequestWord(userId int) {
 			return
 		}
 
-		err = q.setLastWord(id, *w)
+		err = q.crud.setLastWord(id, *w)
 		if err != nil {
 			log.Println("report error: set last word")
 			q.sendMessage(id, err.Error())
@@ -117,7 +117,7 @@ func (q *quiz) RequestWord(userId int) {
 		r := guessRequest{id, *w}
 		q.ask(r)
 
-		err = q.updateUserState(id, waitingAnswer)
+		err = q.crud.updateUserState(id, waitingAnswer)
 		if err != nil {
 			//TODO: what?
 		}
@@ -142,7 +142,7 @@ Next run /quiz and have some fun, idk. You can ask me for /help also.`
 }
 
 func (q *quiz) SelectLang(userId int) {
-	langs, err := q.getLanguages()
+	langs, err := q.crud.getLanguages()
 	if err != nil {
 		return //TODO Error hanling
 	}
@@ -152,7 +152,7 @@ func (q *quiz) SelectLang(userId int) {
 		msg += fmt.Sprintf("[%s] %s\n", l.code, l.english_name)
 	}
 
-	err = q.updateUserState(userId, awaitingLanguage)
+	err = q.crud.updateUserState(userId, awaitingLanguage)
 	if err != nil {
 		//TODO: what?
 	}
@@ -161,7 +161,7 @@ func (q *quiz) SelectLang(userId int) {
 }
 
 func (q *quiz) AwaitUpload(userId int) {
-	err := q.updateUserState(userId, awaitingUpload)
+	err := q.crud.updateUserState(userId, awaitingUpload)
 	if err != nil {
 		return //TODO: Error handle
 	}
@@ -171,7 +171,7 @@ func (q *quiz) AwaitUpload(userId int) {
 
 func (q *quiz) CancelOperation(userId int) {
 
-	user, err := q.getUser(userId)
+	user, err := q.crud.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
 	}
@@ -181,7 +181,7 @@ func (q *quiz) CancelOperation(userId int) {
 		return
 	}
 
-	err = q.updateUserState(userId, readyForQuestion)
+	err = q.crud.updateUserState(userId, readyForQuestion)
 	if err != nil {
 		return //TODO: Error handle
 	}
@@ -191,7 +191,7 @@ func (q *quiz) CancelOperation(userId int) {
 
 func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 
-	u, err := q.getUser(userId)
+	u, err := q.crud.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
 	}
@@ -230,7 +230,7 @@ func (q *quiz) guessWord(usr user, guess string) {
 
 	go func(u user) {
 
-		word, err := q.getLastWord(u.id)
+		word, err := q.crud.getLastWord(u.id)
 		if err != nil {
 			q.sendMessage(u.id, err.Error())
 			return
@@ -242,19 +242,19 @@ func (q *quiz) guessWord(usr user, guess string) {
 			return
 		}
 
-		err = q.deleteLastWord(u.id)
+		err = q.crud.deleteLastWord(u.id)
 
 		p := guessParams{*word, guess, u.id}
 		r := guessResult{p, translated}
 
 		q.tellResult(r)
 
-		err = q.persistAnswer(r)
+		err = q.crud.persistAnswer(r)
 		if err != nil {
 			log.Printf("Failed to write answer: %v\n", err.Error())
 		}
 
-		err = q.updateUserState(u.id, readyForQuestion)
+		err = q.crud.updateUserState(u.id, readyForQuestion)
 		if err != nil {
 			//TODO: what?
 		}
@@ -263,7 +263,7 @@ func (q *quiz) guessWord(usr user, guess string) {
 }
 
 func (q *quiz) tryToMigrate(userId int, url string) {
-	err := q.downloadAndMigrateKindleSQLite(url, userId)
+	err := q.crud.downloadAndMigrateKindleSQLite(url, userId)
 	if err != nil {
 		q.sendMessage(userId, "Looks like db file in incorrect format. Try again.")
 		return
@@ -300,13 +300,13 @@ func compareWords(w1, w2 string) bool {
 }
 
 func (q *quiz) setLanguage(u user, lc string) {
-	l, err := q.getLanguageWithCode(lc)
+	l, err := q.crud.getLanguageWithCode(lc)
 	if err != nil {
 		q.sendMessage(u.id, "Invalid language code")
 		return
 	}
 
-	err = q.updateUserLang(u.id, l.id)
+	err = q.crud.updateUserLang(u.id, l.id)
 	if err != nil {
 		return //TODO
 	}
