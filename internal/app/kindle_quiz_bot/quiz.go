@@ -1,7 +1,6 @@
 package kindle_quiz_bot
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
@@ -11,9 +10,7 @@ import (
 )
 
 type Quiz interface {
-	StartListen()
-	StopListen()
-	Stopped() bool
+	Close()
 	Greetings(userId int)
 	ShowHelp(userId int)
 	RequestWord(userId int)
@@ -26,8 +23,6 @@ type Quiz interface {
 type quiz struct {
 	crud     *crud
 	sender   messageSender
-	cancel   context.CancelFunc
-	ctx      context.Context
 }
 
 type guessRequest struct {
@@ -70,14 +65,8 @@ type messageSender interface {
 	SendMessage(userId int, text string) error
 }
 
-func (q *quiz) StartListen() {
-	q.ctx = context.Background()
-	q.ctx, q.cancel = context.WithCancel(q.ctx)
-}
-
-func (q *quiz) StopListen() {
+func (q *quiz) Close() {
 	q.crud.close()
-	q.cancel()
 }
 
 func (q *quiz) RequestWord(userId int) {
@@ -202,15 +191,6 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 		q.showMigrationInProgressWarn(userId)
 	case awaitingLanguage:
 		q.setLanguage(*u, text)
-	}
-}
-
-func (q *quiz) Stopped() bool {
-	select {
-	case <-q.ctx.Done():
-		return true
-	default:
-		return false
 	}
 }
 

@@ -1,14 +1,13 @@
 package kindle_quiz_bot
 
 import (
-	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 )
 
 type QuizTelegramBot interface {
 	Start() error
-	Stop() error
+	Stop()
 }
 
 type quizTelegramBot struct {
@@ -54,6 +53,7 @@ func (bot quizTelegramBot) Start() error {
 	u.Timeout = 60
 
 	updates, err := bot.GetUpdatesChan(u)
+	defer bot.StopReceivingUpdates()
 
 	if err != nil {
 		return err
@@ -61,14 +61,8 @@ func (bot quizTelegramBot) Start() error {
 
 	q := *bot.q
 
-	q.StartListen()
-
 	for update := range updates {
 		if update.Message == nil { // ignore any non-Message Updates
-			continue
-		}
-
-		if q.Stopped() {
 			continue
 		}
 
@@ -112,16 +106,6 @@ func (bot quizTelegramBot) Start() error {
 	return nil
 }
 
-func (bot quizTelegramBot) Stop() error {
-
-	quiz := *bot.q
-
-	quiz.StopListen()
-
-	err := bot.Stop()
-	if err != nil {
-		return fmt.Errorf("tg bot: stop receiving updates: %v", err.Error())
-	}
-
-	return nil
+func (bot quizTelegramBot) Stop() {
+	bot.StopReceivingUpdates()
 }
