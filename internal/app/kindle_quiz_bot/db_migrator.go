@@ -81,7 +81,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
 	return nil
 }
 
-func downloadFile(filepath string, url string) error {
+func downloadFile(filepath string, url string) (err error) {
 	// Get the data
 	resp, err := http.Get(url)
 	if err != nil {
@@ -94,7 +94,10 @@ func downloadFile(filepath string, url string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+
+	defer func() {
+		err = out.Close()
+	}()
 
 	// Write the body to file
 	_, err = io.Copy(out, resp.Body)
