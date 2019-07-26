@@ -80,8 +80,14 @@ func (crud *crud) getAllUserIds() ([]int, error) {
 
 	res := make([]int, 0, count)
 	for rows.Next() {
+
+		err := rows.Err()
+		if err != nil {
+			return nil, err
+		}
+
 		var id int
-		err := rows.Scan(&id)
+		err = rows.Scan(&id)
 		if err != nil {
 			continue
 		}
@@ -275,9 +281,15 @@ func (crud *crud) getLanguages() ([]lang, error) {
 	defer rows.Close()
 
 	for rows.Next() {
+
+		err := rows.Err()
+		if err != nil {
+			return nil, err
+		}
+
 		log.Println("lang iter")
 		l := lang{}
-		err := rows.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
+		err = rows.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 		if err != nil {
 			fmt.Printf("Get lang: %v", err.Error())
 			continue

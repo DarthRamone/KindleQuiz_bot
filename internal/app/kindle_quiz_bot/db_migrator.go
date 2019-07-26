@@ -69,6 +69,11 @@ func (crud *crud) migrateFromKindleSQLite(sqlitePath string, userId int) error {
 
 	for rows.Next() {
 
+		err := rows.Err()
+		if err != nil {
+			return err
+		}
+
 		log.Println("Words iter")
 
 		var lc string
