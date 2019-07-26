@@ -235,14 +235,29 @@ func (q *quiz) guessWord(usr user, guess string) {
 
 }
 
-func (q *quiz) tryToMigrate(userId int, url string) {
-	err := q.crud.downloadAndMigrateKindleSQLite(url, userId)
+func (q *quiz) tryToMigrate(userId int, url string) error {
+
+	q.sendMessage(userId,"Processing...")
+
+	err := q.crud.updateUserState(userId, migrationInProgress)
+	if err != nil {
+		return fmt.Errorf("migrate: update state: %v", err.Error())
+	}
+
+	err = downloadAndMigrateKindleSQLite(url, userId, q.crud)
 	if err != nil {
 		q.sendMessage(userId, "Looks like db file in incorrect format. Try again.")
-		return
+		return nil
+	}
+
+	err = q.crud.updateUserState(userId, readyForQuestion)
+	if err != nil {
+		return fmt.Errorf("downloading document: %v", err.Error())
 	}
 
 	q.sendMessage(userId, "Migration completed. Press /quiz to start a game.")
+
+	return nil
 }
 
 func translateWord(w word, dst *lang) (string, error) {

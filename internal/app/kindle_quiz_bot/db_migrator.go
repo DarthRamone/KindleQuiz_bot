@@ -11,15 +11,10 @@ import (
 	"strconv"
 )
 
-func (crud *crud) downloadAndMigrateKindleSQLite(url string, userId int) error {
+func downloadAndMigrateKindleSQLite(url string, userId int, crud *crud) error {
 	path := strconv.Itoa(userId) + "_vocab.db"
 
-	err := crud.updateUserState(userId, migrationInProgress)
-	if err != nil {
-		return fmt.Errorf("downloading document: %v", err.Error())
-	}
-
-	err = downloadFile(path, url)
+	err := downloadFile(path, url)
 	if err != nil {
 		return fmt.Errorf("downloading document: %v", err.Error())
 	}
@@ -30,12 +25,7 @@ func (crud *crud) downloadAndMigrateKindleSQLite(url string, userId int) error {
 		}
 	}()
 
-	err = crud.migrateFromKindleSQLite(path, userId)
-	if err != nil {
-		return fmt.Errorf("downloading document: %v", err.Error())
-	}
-
-	err = crud.updateUserState(userId, readyForQuestion)
+	err = migrateFromKindleSQLite(path, userId, crud)
 	if err != nil {
 		return fmt.Errorf("downloading document: %v", err.Error())
 	}
@@ -43,7 +33,7 @@ func (crud *crud) downloadAndMigrateKindleSQLite(url string, userId int) error {
 	return nil
 }
 
-func (crud *crud) migrateFromKindleSQLite(sqlitePath string, userId int) error {
+func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
 	sqliteDB, err := sql.Open("sqlite3", sqlitePath)
 	if err != nil {
 		return fmt.Errorf("db migration: %v", err.Error())
@@ -68,7 +58,6 @@ func (crud *crud) migrateFromKindleSQLite(sqlitePath string, userId int) error {
 	defer rows.Close()
 
 	for rows.Next() {
-
 		err := rows.Err()
 		if err != nil {
 			return err
@@ -80,64 +69,12 @@ func (crud *crud) migrateFromKindleSQLite(sqlitePath string, userId int) error {
 		w := word{}
 		err = rows.Scan(&w.word, &w.stem, &lc)
 		if err != nil {
-			fmt.Printf("sqlite: scanning word row: %v\n", err.Error())
-			continue
+			return fmt.Errorf("migration: scan word: %v", err.Error())
 		}
 
-		tx, err := crud.db.Begin()
+		err = crud.addWordForUser(userId, w, lc)
 		if err != nil {
-			return fmt.Errorf("postgre tx begin: %v\n", err.Error())
-		}
-
-		//Trying to insert word with ignoring duplicate keys
-
-		langId, ok := langMap[lc]
-		if !ok {
-			//TODO: error handling?
-			_ = tx.Rollback()
-			fmt.Printf("No such lang code found: %s", lc)
-			continue
-		}
-
-		log.Println("Insert word")
-
-		var wordId int
-		err = tx.QueryRow(""+
-			"INSERT INTO words (word, stem, lang) "+
-			"VALUES ($1, $2, $3) "+
-			"ON CONFLICT (word, stem, lang) DO UPDATE SET word=$1 RETURNING id", w.word, w.stem, langId).Scan(&wordId)
-
-		if err != nil {
-			log.Printf("insertion word: %v\n", err.Error())
-			log.Println("Query existing word id")
-			//If error happened, probably word with same key was already added, trying to get id
-			err = tx.QueryRow(""+
-				"SELECT id "+
-				"FROM words "+
-				"WHERE word=$1 AND stem=$2 AND lang=$3", w.word, w.stem, w.lang).Scan(&wordId)
-
-			if err != nil {
-				//TODO: error handling?
-				_ = tx.Rollback()
-				fmt.Printf(err.Error())
-				continue
-			}
-		}
-
-		log.Println("Insert user word")
-		_, err = tx.Exec(""+
-			"INSERT INTO user_words (user_id, word_id) "+
-			"VALUES ($1, $2) "+
-			"ON CONFLICT DO NOTHING", userId, wordId)
-		if err != nil {
-			//TODO: error handling?
-			_ = tx.Rollback()
-			return fmt.Errorf("postgre: inserting user_word: %v", err.Error())
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			return fmt.Errorf("postgre: tx commit: %v", err.Error())
+			return fmt.Errorf("migration: add word: %v", err.Error())
 		}
 	}
 

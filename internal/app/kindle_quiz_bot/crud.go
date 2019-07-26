@@ -12,7 +12,10 @@ const (
 	defaultLanguageId = 2 //English
 )
 
-var noWordsFound = errors.New("No words found for user")
+var (
+	noWordsFound = errors.New("No words found for user")
+	langMap map[string]int
+)
 
 type userState int
 
@@ -44,6 +47,16 @@ func (crud *crud) connect(p connectionParams) error {
 	crud.db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		return err
+	}
+
+	log.Println("get languages")
+	langs, err := crud.getLanguages()
+	if err != nil {
+		return fmt.Errorf("get languages: %v", err.Error())
+	}
+	langMap = make(map[string]int, len(langs))
+	for _, l := range langs {
+		langMap[l.code] = l.id
 	}
 
 	return nil
@@ -349,6 +362,68 @@ func (crud *crud) persistAnswer(r guessResult) error {
 	err = tx.Commit()
 	if err != nil {
 		return nil
+	}
+
+	return nil
+}
+
+func (crud *crud) addWordForUser(userId int, word word, lc string) error {
+
+	tx, err := crud.db.Begin()
+	if err != nil {
+		return fmt.Errorf("postgre tx begin: %v\n", err.Error())
+	}
+
+	//Trying to insert word with ignoring duplicate keys
+	langId, ok := langMap[lc]
+	if !ok {
+		//TODO: error handling?
+		_ = tx.Rollback()
+		fmt.Printf("No such lang code found: %s", lc)
+		return err
+	}
+
+	log.Println("Insert word")
+
+	var wordId int
+	err = tx.QueryRow(`
+		INSERT INTO words (word, stem, lang)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (word, stem, lang) 
+		    DO UPDATE SET word=$1 RETURNING id`, word.word, word.stem, langId).Scan(&wordId)
+
+	if err != nil {
+		log.Printf("insertion word: %v\n", err.Error())
+		log.Println("Query existing word id")
+		//If error happened, probably word with same key was already added, trying to get id
+		err = tx.QueryRow(`
+			SELECT id
+			FROM words
+			WHERE word=$1 AND stem=$2 AND lang=$3`, word.word, word.stem, word.lang).Scan(&wordId)
+
+		if err != nil {
+			//TODO: error handling?
+			_ = tx.Rollback()
+			fmt.Printf(err.Error())
+			return err
+		}
+	}
+
+	log.Println("Insert user word")
+	_, err = tx.Exec(`
+		INSERT INTO user_words (user_id, word_id)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`, userId, wordId)
+
+	if err != nil {
+		//TODO: error handling?
+		_ = tx.Rollback()
+		return fmt.Errorf("postgre: inserting user_word: %v", err.Error())
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("postgre: tx commit: %v", err.Error())
 	}
 
 	return nil
