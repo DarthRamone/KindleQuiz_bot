@@ -1,7 +1,6 @@
 package kindle_quiz_bot
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
 	"log"
@@ -76,9 +75,8 @@ func (q *quiz) RequestWord(userId int) {
 
 		w, err := q.crud.getRandomWord(userId)
 
-		if err == sql.ErrNoRows {
-			//TODO: error handle
-			_ = q.sender.SendMessage(id, "No words found. Please run /upload and follow instructions")
+		if err == noWordsFound {
+			q.sendMessage(id, "No words found. Please run /upload and follow instructions")
 			return
 		}
 

@@ -2,6 +2,7 @@ package kindle_quiz_bot
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	_ "github.com/lib/pq"
 	"log"
@@ -10,6 +11,8 @@ import (
 const (
 	defaultLanguageId = 2 //English
 )
+
+var noWordsFound = errors.New("No words found for user")
 
 type userState int
 
@@ -155,6 +158,11 @@ func (crud *crud) getRandomWord(userId int) (*word, error) {
 
 	row := crud.db.QueryRow("SELECT word_id FROM user_words WHERE user_id=$1 OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1", userId)
 	err := row.Scan(&wordId)
+
+	if err == sql.ErrNoRows {
+		return nil, noWordsFound
+	}
+
 	if err != nil {
 		fmt.Printf("shit")
 		return nil, err
