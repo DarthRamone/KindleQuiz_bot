@@ -58,7 +58,7 @@ func (crud *crud) getUserLanguage(userId int) (*lang, error) {
 	err := crud.db.QueryRow(""+
 		"SELECT * FROM languages "+
 		"WHERE id="+
-		"(SELECT current_lang FROM users WHERE id=$1)", userId).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+		"(SELECT current_lang FROM users WHERE id=$1)", userId).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (crud *crud) getUser(id int) (*user, error) {
 func (crud *crud) getLang(id int) (*lang, error) {
 	langRow := crud.db.QueryRow("SELECT * FROM languages WHERE id=$1", id)
 	l := lang{}
-	err := langRow.Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+	err := langRow.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
 		return nil, fmt.Errorf("Get lang: %v", err.Error())
 	}
@@ -242,7 +242,7 @@ func (crud *crud) getLanguages() ([]lang, error) {
 	for rows.Next() {
 		log.Println("lang iter")
 		l := lang{}
-		err := rows.Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+		err := rows.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 		if err != nil {
 			fmt.Printf("Get lang: %v", err.Error())
 			continue
@@ -255,7 +255,7 @@ func (crud *crud) getLanguages() ([]lang, error) {
 
 func (crud *crud) getLanguageWithCode(code string) (*lang, error) {
 	l := lang{}
-	err := crud.db.QueryRow("SELECT * FROM languages WHERE code=$1", code).Scan(&l.id, &l.code, &l.english_name, &l.localized_name)
+	err := crud.db.QueryRow("SELECT * FROM languages WHERE code=$1", code).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
 		return nil, fmt.Errorf("lang with code: %v", err.Error())
 	}

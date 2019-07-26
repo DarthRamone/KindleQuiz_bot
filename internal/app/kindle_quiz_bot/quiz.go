@@ -54,10 +54,10 @@ type user struct {
 }
 
 type lang struct {
-	id             int
-	code           string
-	english_name   string
-	localized_name string
+	id            int
+	code          string
+	englishName   string
+	localizedName string
 }
 
 type MessageSender interface {
@@ -129,7 +129,7 @@ func (q *quiz) SelectLang(userId int) {
 
 	msg := "Select language code:\n\n"
 	for _, l := range langs {
-		msg += fmt.Sprintf("[%s] %s\n", l.code, l.english_name)
+		msg += fmt.Sprintf("[%s] %s\n", l.code, l.englishName)
 	}
 
 	err = q.crud.updateUserState(userId, awaitingLanguage)
@@ -290,7 +290,7 @@ func (q *quiz) setLanguage(u user, lc string) {
 		return //TODO
 	}
 
-	q.sendMessage(u.id, fmt.Sprintf("Language changed to: %s", l.localized_name))
+	q.sendMessage(u.id, fmt.Sprintf("Language changed to: %s", l.localizedName))
 }
 
 func (q *quiz) showMigrationInProgressWarn(userId int) {
@@ -321,7 +321,7 @@ func (q *quiz) tellResult(r guessResult) {
 
 func (q *quiz) ask(r guessRequest) {
 	w := r.word
-	question := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.english_name)
+	question := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.englishName)
 	q.sendMessage(r.userId, question)
 }
 
