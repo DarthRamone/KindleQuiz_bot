@@ -57,7 +57,7 @@ type word struct {
 
 type user struct {
 	id              int
-	currentState    int
+	currentState    userState
 	currentLanguage *lang
 }
 

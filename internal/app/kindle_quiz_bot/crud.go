@@ -11,8 +11,10 @@ const (
 	defaultLanguageId = 2 //English
 )
 
+type userState int
+
 const (
-	awaitingUpload = iota
+	awaitingUpload userState = iota
 	waitingAnswer
 	readyForQuestion
 	migrationInProgress
@@ -88,7 +90,7 @@ func (crud *crud) getAllUserIds() ([]int, error) {
 	return res, nil
 }
 
-func (crud *crud) updateUserState(userId, state int) error {
+func (crud *crud) updateUserState(userId int, state userState) error {
 	_, err := crud.db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
 	if err != nil {
 		return err
