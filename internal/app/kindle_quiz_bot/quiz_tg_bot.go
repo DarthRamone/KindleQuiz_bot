@@ -16,7 +16,6 @@ type quizTelegramBot struct {
 }
 
 func NewQuizTelegramBot(token string) (QuizTelegramBot, error) {
-
 	var quizBot QuizTelegramBot
 
 	bot := quizTelegramBot{}
@@ -47,7 +46,6 @@ func (b *quizTelegramBot) SendMessage(userId int, text string) error {
 }
 
 func (bot quizTelegramBot) Start() error {
-
 	u := tg.NewUpdate(0)
 	u.Timeout = 60
 
@@ -65,44 +63,47 @@ func (bot quizTelegramBot) Start() error {
 			continue
 		}
 
-		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-		userId := update.Message.From.ID
-
-		switch update.Message.Text {
-		case "/start":
-			q.Greetings(userId)
-		case "/quiz":
-			q.RequestWord(userId)
-		case "/help":
-			q.ShowHelp(userId)
-		case "/set_lang":
-			q.SelectLang(userId)
-		case "/upload":
-			q.AwaitUpload(userId)
-		case "/cancel":
-			q.CancelOperation(userId)
-		default:
-			go func(upd tg.Update) {
-				userId := update.Message.From.ID
-				if update.Message.Document != nil {
-
-					url, err := bot.GetFileDirectURL(update.Message.Document.FileID)
-					if err != nil {
-						log.Fatalf(err.Error())
-						return //TODO: Error handling
-					}
-
-					q.ProcessMessage(userId, update.Message.Text, url)
-
-				} else {
-					q.ProcessMessage(userId, update.Message.Text, "")
-				}
-			}(update)
-		}
+		go func(upd tg.Update) {
+			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+			bot.processUpdate(update, q)
+		}(update)
 	}
 
 	return nil
+}
+
+func (bot quizTelegramBot) processUpdate(update tg.Update, q Quiz) {
+	userId := update.Message.From.ID
+
+	switch update.Message.Text {
+	case "/start":
+		q.Greetings(userId)
+	case "/quiz":
+		q.RequestWord(userId)
+	case "/help":
+		q.ShowHelp(userId)
+	case "/set_lang":
+		q.SelectLang(userId)
+	case "/upload":
+		q.AwaitUpload(userId)
+	case "/cancel":
+		q.CancelOperation(userId)
+	default:
+		userId := update.Message.From.ID
+		if update.Message.Document != nil {
+
+			url, err := bot.GetFileDirectURL(update.Message.Document.FileID)
+			if err != nil {
+				log.Fatalf(err.Error())
+				return //TODO: Error handling
+			}
+
+			q.ProcessMessage(userId, update.Message.Text, url)
+
+		} else {
+			q.ProcessMessage(userId, update.Message.Text, "")
+		}
+	}
 }
 
 func (bot quizTelegramBot) Stop() {

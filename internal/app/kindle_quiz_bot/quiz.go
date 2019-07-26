@@ -69,27 +69,24 @@ func (q *quiz) Close() {
 }
 
 func (q *quiz) RequestWord(userId int) {
-	go func(id int) {
+	log.Println("request word")
 
-		log.Println("request word")
+	w, err := q.crud.getRandomWord(userId)
 
-		w, err := q.crud.getRandomWord(userId)
+	if err == noWordsFound {
+		q.sendMessage(userId, "No words found. Please run /upload and follow instructions")
+		return
+	}
 
-		if err == noWordsFound {
-			q.sendMessage(id, "No words found. Please run /upload and follow instructions")
-			return
-		}
+	if err != nil {
+		log.Println("report error: random word")
+		q.sendMessage(userId, err.Error())
+		return
+	}
 
-		if err != nil {
-			log.Println("report error: random word")
-			q.sendMessage(id, err.Error())
-			return
-		}
-
-		log.Println("send request")
-		r := guessRequest{id, *w}
-		q.ask(r)
-	}(userId)
+	log.Println("send request")
+	r := guessRequest{userId, *w}
+	q.ask(r)
 }
 
 func (q *quiz) ShowHelp(userId int) {
@@ -144,7 +141,6 @@ func (q *quiz) AwaitUpload(userId int) {
 }
 
 func (q *quiz) CancelOperation(userId int) {
-
 	user, err := q.crud.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
@@ -164,7 +160,6 @@ func (q *quiz) CancelOperation(userId int) {
 }
 
 func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
-
 	u, err := q.crud.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
@@ -174,7 +169,10 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 
 	switch u.currentState {
 	case awaitingUpload:
-		q.tryToMigrate(userId, documentUrl)
+		err := q.tryToMigrate(userId, documentUrl)
+		if err != nil {
+			q.sendMessage(userId, "migration failed")
+		}
 	case readyForQuestion:
 		q.ShowHelp(u.id)
 	case waitingAnswer:
@@ -199,45 +197,39 @@ func NewQuiz(s MessageSender) Quiz {
 	return quizResult
 }
 
-func (q *quiz) guessWord(usr user, guess string) {
+func (q *quiz) guessWord(u user, guess string) {
+	word, err := q.crud.getLastWord(u.id)
+	if err != nil {
+		q.sendMessage(u.id, err.Error())
+		return
+	}
 
-	go func(u user) {
+	translated, err := translateWord(*word, u.currentLanguage)
+	if err != nil {
+		q.sendMessage(u.id, err.Error())
+		return
+	}
 
-		word, err := q.crud.getLastWord(u.id)
-		if err != nil {
-			q.sendMessage(u.id, err.Error())
-			return
-		}
+	err = q.crud.deleteLastWord(u.id)
 
-		translated, err := translateWord(*word, u.currentLanguage)
-		if err != nil {
-			q.sendMessage(u.id, err.Error())
-			return
-		}
+	p := guessParams{*word, guess, u.id}
+	r := guessResult{p, translated}
 
-		err = q.crud.deleteLastWord(u.id)
+	q.tellResult(r)
 
-		p := guessParams{*word, guess, u.id}
-		r := guessResult{p, translated}
+	err = q.crud.persistAnswer(r)
+	if err != nil {
+		log.Printf("Failed to write answer: %v\n", err.Error())
+	}
 
-		q.tellResult(r)
-
-		err = q.crud.persistAnswer(r)
-		if err != nil {
-			log.Printf("Failed to write answer: %v\n", err.Error())
-		}
-
-		err = q.crud.updateUserState(u.id, readyForQuestion)
-		if err != nil {
-			//TODO: what?
-		}
-	}(usr)
-
+	err = q.crud.updateUserState(u.id, readyForQuestion)
+	if err != nil {
+		//TODO: what?
+	}
 }
 
 func (q *quiz) tryToMigrate(userId int, url string) error {
-
-	q.sendMessage(userId,"Processing...")
+	q.sendMessage(userId, "Processing...")
 
 	err := q.crud.updateUserState(userId, migrationInProgress)
 	if err != nil {
@@ -261,7 +253,6 @@ func (q *quiz) tryToMigrate(userId int, url string) error {
 }
 
 func translateWord(w word, dst *lang) (string, error) {
-
 	translated, err := gtranslate.TranslateWithParams(
 		w.word,
 		gtranslate.TranslationParams{
@@ -280,7 +271,6 @@ func translateWord(w word, dst *lang) (string, error) {
 }
 
 func compareWords(w1, w2 string) bool {
-
 	s1 := strings.ToLower(strings.Trim(w1, " "))
 	s2 := strings.ToLower(strings.Trim(w2, " "))
 
@@ -307,7 +297,6 @@ func (q *quiz) showMigrationInProgressWarn(userId int) {
 }
 
 func (q *quiz) connectToDB() error {
-
 	c := crud{}
 	p := connectionParams{user: "postgres", dbName: "vocab", port: 32770, sslMode: "disable"}
 	err := c.connect(p)

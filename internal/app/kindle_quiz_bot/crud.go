@@ -14,7 +14,7 @@ const (
 
 var (
 	noWordsFound = errors.New("No words found for user")
-	langMap map[string]int
+	langMap      map[string]int
 )
 
 type userState int

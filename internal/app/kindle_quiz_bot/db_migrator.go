@@ -34,11 +34,11 @@ func downloadAndMigrateKindleSQLite(url string, userId int, crud *crud) error {
 }
 
 func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
-	sqliteDB, err := sql.Open("sqlite3", sqlitePath)
+	SQLiteDB, err := sql.Open("sqlite3", sqlitePath)
 	if err != nil {
 		return fmt.Errorf("db migration: %v", err.Error())
 	}
-	defer sqliteDB.Close()
+	defer SQLiteDB.Close()
 
 	log.Println("get languages")
 	langs, err := crud.getLanguages()
@@ -51,7 +51,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
 	}
 
 	log.Println("Query words")
-	rows, err := sqliteDB.Query("SELECT word, stem, lang FROM WORDS")
+	rows, err := SQLiteDB.Query("SELECT word, stem, lang FROM WORDS")
 	if err != nil {
 		return fmt.Errorf("sqlite: querying words: %v", err.Error())
 	}
@@ -82,7 +82,6 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
 }
 
 func downloadFile(filepath string, url string) error {
-
 	// Get the data
 	resp, err := http.Get(url)
 	if err != nil {
