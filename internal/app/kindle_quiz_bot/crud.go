@@ -361,7 +361,7 @@ func (crud *crud) persistAnswer(r guessResult) error {
 
 	err = tx.Commit()
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return nil
