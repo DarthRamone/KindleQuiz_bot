@@ -55,10 +55,9 @@ func (crud *crud) close() {
 
 func (crud *crud) getUserLanguage(userId int) (*lang, error) {
 	l := lang{}
-	err := crud.db.QueryRow(""+
-		"SELECT * FROM languages "+
-		"WHERE id="+
-		"(SELECT current_lang FROM users WHERE id=$1)", userId).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
+	err := crud.db.QueryRow(`
+		SELECT * FROM languages 
+		WHERE id=(SELECT current_lang FROM users WHERE id=$1)`, userId).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +117,10 @@ func (crud *crud) createUser(userId int) (*user, error) {
 
 	u := user{userId, readyForQuestion, lang}
 
-	_, err = crud.db.Exec("INSERT INTO users (id, current_lang) VALUES ($1, $2) ON CONFLICT DO NOTHING", userId, defaultLanguageId)
+	_, err = crud.db.Exec(`
+		INSERT INTO users (id, current_lang) 
+		VALUES ($1, $2) 
+		ON CONFLICT DO NOTHING`, userId, defaultLanguageId)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +137,11 @@ func (crud *crud) deleteLastWord(userId int) error {
 }
 
 func (crud *crud) setLastWord(userId int, w word) error {
-	_, err := crud.db.Exec("INSERT INTO questions (user_id, word_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET word_id=$2", userId, w.id)
+	_, err := crud.db.Exec(`
+		INSERT INTO questions (user_id, word_id) 
+		VALUES ($1, $2) 
+		ON CONFLICT (user_id) 
+		    DO UPDATE SET word_id=$2`, userId, w.id)
 	if err != nil {
 		return err
 	}
@@ -162,14 +168,24 @@ func (crud *crud) getRandomWord(userId int) (*word, error) {
 		return nil, err
 	}
 
-	row := tx.QueryRow("SELECT word_id FROM user_words WHERE user_id=$1 OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1", userId)
+	row := tx.QueryRow(`
+		SELECT word_id 
+		FROM user_words 
+		WHERE user_id=$1 
+		OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1`, userId)
+
 	err = row.Scan(&wordId)
 	if err == sql.ErrNoRows {
 		_ = tx.Rollback()
 		return nil, noWordsFound
 	}
 
-	_, err = tx.Exec("INSERT INTO questions (user_id, word_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET word_id=$2", userId, wordId)
+	_, err = tx.Exec(`
+		INSERT INTO questions (user_id, word_id) 
+		VALUES ($1, $2) 
+		ON CONFLICT (user_id) 
+		    DO UPDATE SET word_id=$2`, userId, wordId)
+
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err
@@ -297,9 +313,9 @@ func (crud *crud) persistAnswer(r guessResult) error {
 		return err
 	}
 
-	_, err = tx.Exec(""+
-		"INSERT INTO answers (word_id, user_id, correct, user_lang, guess)"+
-		"VALUES ($1, $2, $3, $4, $5)", p.word.id, p.userId, r.correct(), lang.id, p.guess)
+	_, err = tx.Exec(`
+		INSERT INTO answers (word_id, user_id, correct, user_lang, guess) 
+		VALUES ($1, $2, $3, $4, $5)`, p.word.id, p.userId, r.correct(), lang.id, p.guess)
 
 	var field string
 	if r.correct() {
