@@ -219,7 +219,7 @@ func (crud *crud) getWord(wordId int) (*word, error) {
 	var langId int
 	err := wordRow.Scan(&w.word, &w.stem, &langId, &w.id)
 	if err != nil {
-		return nil, fmt.Errorf("Random word row scan: %v", err.Error())
+		return nil, fmt.Errorf("random word row scan: %v", err.Error())
 	}
 
 	l, err := crud.getLang(langId)

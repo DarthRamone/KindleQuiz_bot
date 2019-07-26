@@ -124,17 +124,6 @@ func (crud *crud) migrateFromKindleSQLite(sqlitePath string, userId int) error {
 			}
 		}
 
-		log.Println("Insert user")
-		_, err = tx.Exec(""+
-			"INSERT INTO users (id) "+
-			"VALUES ($1) "+
-			"ON CONFLICT DO NOTHING", userId)
-		if err != nil {
-			//TODO: error handling?
-			_ = tx.Rollback()
-			return fmt.Errorf("postgre: inserting user: %v", err.Error())
-		}
-
 		log.Println("Insert user word")
 		_, err = tx.Exec(""+
 			"INSERT INTO user_words (user_id, word_id) "+

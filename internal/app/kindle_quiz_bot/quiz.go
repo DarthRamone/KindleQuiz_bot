@@ -104,9 +104,15 @@ func (q *quiz) ShowHelp(userId int) {
 }
 
 func (q *quiz) Greetings(userId int) {
-	msg := `Yo. Firstly you have to run /upload and upload your vocab.db file. 
+
+	_, err := q.crud.createUser(userId)
+	if err != nil {
+		//TODO: error handle
+	} else {
+		msg := `Yo. Firstly you have to run /upload and upload your vocab.db file. 
 Next run /quiz and have some fun, idk. You can ask me for /help also.`
-	q.sendMessage(userId, msg)
+		q.sendMessage(userId, msg)
+	}
 }
 
 func (q *quiz) SelectLang(userId int) {
