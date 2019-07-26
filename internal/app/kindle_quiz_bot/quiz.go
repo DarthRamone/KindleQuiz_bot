@@ -26,8 +26,6 @@ type Quiz interface {
 type quiz struct {
 	*crud
 	sender   messageSender
-	requests chan guessRequest
-	results  chan guessResult
 	cancel   context.CancelFunc
 	ctx      context.Context
 }
@@ -73,7 +71,6 @@ type messageSender interface {
 }
 
 func (q *quiz) StartListen() {
-
 	if q.crud == nil {
 		err := q.connectToDB()
 		if err != nil {
@@ -83,26 +80,6 @@ func (q *quiz) StartListen() {
 
 	q.ctx = context.Background()
 	q.ctx, q.cancel = context.WithCancel(q.ctx)
-
-	go func(quiz *quiz) {
-		for {
-			select {
-			case <-quiz.ctx.Done():
-				for range quiz.results {
-				}
-				for range quiz.requests {
-				}
-			case req := <-quiz.requests:
-				go func() {
-					quiz.ask(req)
-				}()
-			case res := <-quiz.results:
-				go func() {
-					quiz.tellResult(res)
-				}()
-			}
-		}
-	}(q)
 }
 
 func (q *quiz) StopListen() {
@@ -138,7 +115,7 @@ func (q *quiz) RequestWord(userId int) {
 
 		log.Println("send request")
 		r := guessRequest{id, *w}
-		q.requests <- r
+		q.ask(r)
 
 		err = q.updateUserState(id, waitingAnswer)
 		if err != nil {
@@ -245,9 +222,7 @@ func (q *quiz) Stopped() bool {
 }
 
 func newQuiz(s messageSender) Quiz {
-	var req = make(chan guessRequest)
-	var res = make(chan guessResult)
-	var q Quiz = &quiz{sender: s, requests: req, results: res}
+	var q Quiz = &quiz{sender: s}
 	return q
 }
 
@@ -271,7 +246,8 @@ func (q *quiz) guessWord(usr user, guess string) {
 
 		p := guessParams{*word, guess, u.id}
 		r := guessResult{p, translated}
-		q.addResult(r)
+
+		q.tellResult(r)
 
 		err = q.persistAnswer(r)
 		if err != nil {
@@ -379,12 +355,4 @@ func (q *quiz) sendMessage(userId int, text string) {
 	if err != nil {
 		//TODO: Error handle
 	}
-}
-
-func (q *quiz) addRequest(request guessRequest) {
-	q.requests <- request
-}
-
-func (q *quiz) addResult(result guessResult) {
-	q.results <- result
 }
