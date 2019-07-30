@@ -6,4 +6,4 @@ RUN mkdir sql
 
 ENTRYPOINT ["/go/bin/goose"]
 
-CMD ["-dir", "./sql", "postgres", "\"user=postgres dbname=vocab sslmode=disable port=5432 host=postgres\"", "up"]
+CMD ["-dir", "/sql/", "postgres", "user=postgres dbname=vocab sslmode=disable port=5432 host=postgres", "up"]

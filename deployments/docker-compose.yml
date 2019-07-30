@@ -15,7 +15,7 @@ services:
       context: ./../
       dockerfile: build/migrations/Dockerfile
     volumes:
-      - ./sql/migrations:/sql
+      - ./../sql/migrations:/sql
     depends_on:
       - postgres
 
