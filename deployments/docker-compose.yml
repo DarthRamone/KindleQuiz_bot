@@ -1,0 +1,13 @@
+version: '2'
+services:
+  bot:
+    build: ./../build/package
+    working_dir: ./../
+    depends_on:
+      - postgres
+  postgres:
+    image: "postgres"
+    environment:
+      POSTGRES_DB: "vocab"
+    ports:
+      - "5432:5432"

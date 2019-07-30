@@ -322,7 +322,7 @@ func (q *quiz) showMigrationInProgressWarn(userId int) {
 
 func (q *quiz) connectToDB() error {
 	c := crud{}
-	p := connectionParams{user: "postgres", dbName: "test", port: 32770, sslMode: "disable"}
+	p := connectionParams{user: "postgres", dbName: "vocab", port: 5432, sslMode: "disable"}
 	err := c.connect(p)
 	if err != nil {
 		return err
