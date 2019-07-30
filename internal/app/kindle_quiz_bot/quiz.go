@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+const (
+	maxMigrationWorkersCount = 3
+)
+
 type Quiz interface {
 	Close()
 	Greetings(userId int)
@@ -22,6 +26,7 @@ type Quiz interface {
 type quiz struct {
 	crud   *crud
 	sender MessageSender
+	migrationJobs chan migrationJob
 }
 
 type guessRequest struct {
@@ -60,12 +65,18 @@ type lang struct {
 	localizedName string
 }
 
+type migrationJob struct {
+	userId      int
+	documentUrl string
+}
+
 type MessageSender interface {
 	SendMessage(userId int, text string) error
 }
 
 func (q *quiz) Close() {
 	q.crud.close()
+	close(q.migrationJobs)
 }
 
 func (q *quiz) RequestWord(userId int) {
@@ -185,14 +196,21 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 }
 
 func NewQuiz(s MessageSender) Quiz {
-	quiz := quiz{sender: s}
+	newQuiz := quiz{sender: s}
 
-	err := quiz.connectToDB()
+	err := newQuiz.connectToDB()
 	if err != nil {
 		log.Fatalf("db connect: %v", err.Error())
 	}
 
-	return &quiz
+	jobs := make(chan migrationJob, 20)
+	newQuiz.migrationJobs = jobs
+
+	for i := 0; i < maxMigrationWorkersCount; i++ {
+		go newQuiz.migrationWorker(jobs)
+	}
+
+	return &newQuiz
 }
 
 func (q *quiz) guessWord(u user, guess string) {
@@ -227,8 +245,6 @@ func (q *quiz) guessWord(u user, guess string) {
 }
 
 func (q *quiz) tryToMigrate(userId int, url string) error {
-	q.sendMessage(userId, "Processing...")
-
 	err := q.crud.updateUserState(userId, migrationInProgress)
 	if err != nil {
 		return fmt.Errorf("migrate: update state: %v", err.Error())
@@ -244,8 +260,6 @@ func (q *quiz) tryToMigrate(userId int, url string) error {
 	if err != nil {
 		return fmt.Errorf("downloading document: %v", err.Error())
 	}
-
-	q.sendMessage(userId, "Migration completed. Press /quiz to start a game.")
 
 	return nil
 }
@@ -329,5 +343,21 @@ func (q *quiz) sendMessage(userId int, text string) {
 	err := q.sender.SendMessage(userId, text)
 	if err != nil {
 		//TODO: Error handle
+	}
+}
+
+func (q *quiz) migrationWorker(jobs <- chan migrationJob) {
+	for job := range jobs {
+		userId := job.userId
+
+		q.sendMessage(userId, "Processing...")
+
+		err := q.tryToMigrate(userId, job.documentUrl)
+		if err != nil {
+			q.sendMessage(userId, "migration failed")
+			continue
+		}
+
+		q.sendMessage(job.userId, "Migration completed. Press /quiz to start a game.")
 	}
 }
