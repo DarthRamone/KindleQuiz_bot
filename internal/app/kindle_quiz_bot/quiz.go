@@ -185,16 +185,14 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 }
 
 func NewQuiz(s MessageSender) Quiz {
-	var quizResult Quiz = &quiz{sender: s}
 	quiz := quiz{sender: s}
-	quizResult = &quiz
 
 	err := quiz.connectToDB()
 	if err != nil {
 		log.Fatalf("db connect: %v", err.Error())
 	}
 
-	return quizResult
+	return &quiz
 }
 
 func (q *quiz) guessWord(u user, guess string) {
