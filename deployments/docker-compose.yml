@@ -1,10 +1,13 @@
 version: '2'
 services:
   bot:
-    build: ./../build/package
-    working_dir: ./../
+    build:
+      context: ./../
+      dockerfile: build/package/Dockerfile
     depends_on:
       - postgres
+    environment:
+      - TG_TOKEN
   postgres:
     image: "postgres"
     environment:
