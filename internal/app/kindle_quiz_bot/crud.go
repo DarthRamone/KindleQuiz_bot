@@ -202,8 +202,7 @@ func (crud *crud) getRandomWord(userId int) (*word, error) {
 	_, err = tx.Exec(`
 		INSERT INTO questions (user_id, word_id) 
 		VALUES ($1, $2) 
-		ON CONFLICT (user_id) 
-		    DO UPDATE SET word_id=$2`, userId, wordId)
+		ON CONFLICT (user_id, word_id) DO UPDATE SET word_id=$2`, userId, wordId)
 
 	if err != nil {
 		_ = tx.Rollback()
