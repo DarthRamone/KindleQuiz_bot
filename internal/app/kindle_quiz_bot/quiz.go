@@ -3,13 +3,18 @@ package kindle_quiz_bot
 import (
 	"fmt"
 	"github.com/DarthRamone/gtranslate"
+	"io"
 	"log"
+	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const (
 	maxMigrationWorkersCount = 3
+	maxDownloadJobsCount     = 3
 )
 
 type Quiz interface {
@@ -24,8 +29,9 @@ type Quiz interface {
 }
 
 type quiz struct {
-	crud   *crud
-	sender MessageSender
+	crud          *crud
+	sender        MessageSender
+	downloadJobs  chan downloadJob
 	migrationJobs chan migrationJob
 }
 
@@ -65,9 +71,14 @@ type lang struct {
 	localizedName string
 }
 
-type migrationJob struct {
+type downloadJob struct {
 	userId      int
 	documentUrl string
+}
+
+type migrationJob struct {
+	downloadJob
+	documentPath string
 }
 
 type MessageSender interface {
@@ -180,10 +191,7 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 
 	switch u.currentState {
 	case awaitingUpload:
-		err := q.tryToMigrate(userId, documentUrl)
-		if err != nil {
-			q.sendMessage(userId, "migration failed")
-		}
+		q.downloadJobs <- downloadJob{userId, documentUrl}
 	case readyForQuestion:
 		q.ShowHelp(u.id)
 	case waitingAnswer:
@@ -196,21 +204,25 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 }
 
 func NewQuiz(s MessageSender) Quiz {
-	newQuiz := quiz{sender: s}
+	q := quiz{sender: s}
 
-	err := newQuiz.connectToDB()
+	err := q.connectToDB()
 	if err != nil {
 		log.Fatalf("db connect: %v", err.Error())
 	}
 
-	jobs := make(chan migrationJob, 20)
-	newQuiz.migrationJobs = jobs
+	q.downloadJobs = make(chan downloadJob, 20)
+	q.migrationJobs = make(chan migrationJob, 20)
 
-	for i := 0; i < maxMigrationWorkersCount; i++ {
-		go newQuiz.migrationWorker(jobs)
+	for i := 0; i < maxDownloadJobsCount; i++ {
+		go q.downloadWorker(q.downloadJobs)
 	}
 
-	return &newQuiz
+	for i := 0; i < maxMigrationWorkersCount; i++ {
+		go q.migrationWorker(q.migrationJobs)
+	}
+
+	return &q
 }
 
 func (q *quiz) guessWord(u user, guess string) {
@@ -244,13 +256,13 @@ func (q *quiz) guessWord(u user, guess string) {
 	}
 }
 
-func (q *quiz) tryToMigrate(userId int, url string) error {
+func (q *quiz) tryToMigrate(userId int, path string) error {
 	err := q.crud.updateUserState(userId, migrationInProgress)
 	if err != nil {
 		return fmt.Errorf("migrate: update state: %v", err.Error())
 	}
 
-	err = downloadAndMigrateKindleSQLite(url, userId, q.crud)
+	err = migrateFromKindleSQLite(path, userId, q.crud)
 	if err != nil {
 		q.sendMessage(userId, "Looks like db file in incorrect format. Try again.")
 		return nil
@@ -346,18 +358,68 @@ func (q *quiz) sendMessage(userId int, text string) {
 	}
 }
 
-func (q *quiz) migrationWorker(jobs <- chan migrationJob) {
+func (q *quiz) migrationWorker(jobs <-chan migrationJob) {
+	for downloadJob := range jobs {
+		func(job migrationJob) {
+			userId := job.userId
+			path := job.documentPath
+
+			defer func() {
+				err := os.Remove(path)
+				if err != nil {
+					log.Printf("downloading document: %v", err.Error())
+				}
+			}()
+
+
+			q.sendMessage(userId, "Processing...")
+
+			err := q.tryToMigrate(userId, path)
+			if err != nil {
+				q.sendMessage(userId, "migration failed")
+				return
+			}
+
+			q.sendMessage(job.userId, "Migration completed. Press /quiz to start a game.")
+		}(downloadJob)
+	}
+}
+
+func (q *quiz) downloadWorker(jobs <- chan downloadJob) {
 	for job := range jobs {
 		userId := job.userId
 
-		q.sendMessage(userId, "Processing...")
+		path := strconv.Itoa(userId) + "_vocab.db"
 
-		err := q.tryToMigrate(userId, job.documentUrl)
+		err := downloadFile(path, job.documentUrl)
 		if err != nil {
-			q.sendMessage(userId, "migration failed")
-			continue
+			//TODO: add retry policy maybe
+			q.sendMessage(userId, "Document couldn't be downloaded")
 		}
 
-		q.sendMessage(job.userId, "Migration completed. Press /quiz to start a game.")
+		q.migrationJobs <- migrationJob{job, path}
 	}
+}
+
+func downloadFile(filepath string, url string) (err error) {
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err = out.Close()
+	}()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
