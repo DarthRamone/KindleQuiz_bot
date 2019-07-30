@@ -37,11 +37,14 @@ type connectionParams struct {
 	dbName   string
 	port     int
 	sslMode  string
+	url      string
 }
 
 func (crud *crud) connect(p connectionParams) error {
 
-	connStr := fmt.Sprintf("user=%s dbname=%s port=%d sslmode=%s", p.user, p.dbName, p.port, p.sslMode)
+	connStr := fmt.Sprintf("user=%s dbname=%s port=%d sslmode=%s host=%s", p.user, p.dbName, p.port, p.sslMode, p.url)
+
+	log.Printf("DB connection string: %s", connStr)
 
 	var err error
 	crud.db, err = sql.Open("postgres", connStr)

@@ -1,13 +1,24 @@
 version: '2'
 services:
+
   bot:
     build:
       context: ./../
       dockerfile: build/package/Dockerfile
     depends_on:
-      - postgres
+      - goose
     environment:
       - TG_TOKEN
+
+  goose:
+    build:
+      context: ./../
+      dockerfile: build/migrations/Dockerfile
+    volumes:
+      - ./sql/migrations:/sql
+    depends_on:
+      - postgres
+
   postgres:
     image: "postgres"
     environment:
