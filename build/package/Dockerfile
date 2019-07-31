@@ -4,5 +4,3 @@ RUN mkdir /app
 ADD . /app
 WORKDIR /app
 RUN go build -o main ./cmd/kindle_quiz_bot/main.go
-
-CMD ["./main"]

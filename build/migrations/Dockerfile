@@ -4,6 +4,9 @@ RUN go get -u github.com/pressly/goose/cmd/goose
 
 RUN mkdir sql
 
-ENTRYPOINT ["/go/bin/goose"]
+COPY deployments/wait-for-postgres.sh /
 
-CMD ["-dir", "/sql/", "postgres", "user=postgres dbname=vocab sslmode=disable port=5432 host=postgres", "up"]
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
