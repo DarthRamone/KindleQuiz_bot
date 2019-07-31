@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/lib/pq"
 	"log"
+
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 )
 
 var (
-	noWordsFound = errors.New("No words found for user")
+	noWordsFound = errors.New("no words found for user")
 )
 
 type userState int
@@ -59,9 +60,12 @@ func (repo *repository) close() {
 
 func (repo *repository) getUserLanguage(userId int) (*lang, error) {
 	l := lang{}
-	err := repo.db.QueryRow(`
+	row := repo.db.QueryRow(`
 		SELECT * FROM languages 
-		WHERE id=(SELECT current_lang FROM users WHERE id=$1)`, userId).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
+		WHERE id=(SELECT current_lang FROM users WHERE id=$1)`, userId)
+
+	err := row.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
+
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +231,7 @@ func (repo *repository) getLang(id int) (*lang, error) {
 	l := lang{}
 	err := langRow.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
-		return nil, fmt.Errorf("Get lang: %v", err.Error())
+		return nil, fmt.Errorf("get lang: %v", err.Error())
 	}
 	return &l, nil
 }
@@ -246,7 +250,10 @@ func (repo *repository) getLanguages() ([]lang, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		//TODO: error handle
+		_ = rows.Close()
+	}()
 
 	for rows.Next() {
 
@@ -258,7 +265,7 @@ func (repo *repository) getLanguages() ([]lang, error) {
 		l := lang{}
 		err = rows.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 		if err != nil {
-			return nil, fmt.Errorf("Get lang: %v", err.Error())
+			return nil, fmt.Errorf("get lang: %v", err.Error())
 		}
 		langs = append(langs, l)
 	}
@@ -276,7 +283,6 @@ func (repo *repository) getLanguageWithCode(code string) (*lang, error) {
 }
 
 func (repo *repository) persistAnswer(r guessResult) error {
-
 	p := r.params
 
 	tx, err := repo.db.Begin()

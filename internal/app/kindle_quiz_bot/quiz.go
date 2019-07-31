@@ -407,7 +407,10 @@ func downloadFile(filepath string, url string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		//TODO: error handle
+		_ = resp.Body.Close()
+	}()
 
 	// Create the file
 	out, err := os.Create(filepath)

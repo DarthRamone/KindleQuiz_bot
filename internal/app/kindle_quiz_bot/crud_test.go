@@ -158,7 +158,12 @@ func TestAddWordForUser(t *testing.T) {
 }
 
 func TestGetUserLanguage(t *testing.T) {
-	lang, err := repo.getUserLanguage(testUserId)
+	lang, err := repo.getUserLanguage(-1)
+	if err == nil {
+		t.Fatalf("Lang should be nil")
+	}
+
+	lang, err = repo.getUserLanguage(testUserId)
 	if err != nil {
 		t.Fatalf("Couldn't get user language: %v", err)
 	}

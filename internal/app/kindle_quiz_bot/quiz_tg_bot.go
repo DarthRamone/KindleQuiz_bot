@@ -1,8 +1,9 @@
 package kindle_quiz_bot
 
 import (
-	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
+
+	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
 type QuizTelegramBot interface {
@@ -35,9 +36,9 @@ func NewQuizTelegramBot(token string) (QuizTelegramBot, error) {
 	return quizBot, nil
 }
 
-func (b *quizTelegramBot) SendMessage(userId int, text string) error {
+func (bot *quizTelegramBot) SendMessage(userId int, text string) error {
 	msg := tg.NewMessage(int64(userId), text)
-	_, err := b.Send(msg)
+	_, err := bot.Send(msg)
 	if err != nil {
 		return err
 	}
@@ -64,8 +65,8 @@ func (bot quizTelegramBot) Start() error {
 		}
 
 		go func(upd tg.Update) {
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-			bot.processUpdate(update, q)
+			log.Printf("[%s] %s", upd.Message.From.UserName, upd.Message.Text)
+			bot.processUpdate(upd, q)
 		}(update)
 	}
 
