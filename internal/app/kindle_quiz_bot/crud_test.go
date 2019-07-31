@@ -23,7 +23,7 @@ func TestDeleteLastWord(t *testing.T) {
 }
 
 func TestGetLang(t *testing.T) {
-	lang, err := repo.getLang(langId)
+	lang, err := repo.getLang(testLangId)
 	if err != nil {
 		t.Fatalf("Couldn't get lang: %v", err)
 	}
@@ -104,5 +104,130 @@ func TestGetUser(t *testing.T) {
 	//TODO: better equality comparing
 	if user.id != testUserId {
 		t.Fatalf("User id isn't same")
+	}
+}
+
+func TestGetLanguages(t *testing.T) {
+	languages, err := repo.getLanguages()
+	if err != nil {
+		t.Fatalf("get languages failed: %v", err)
+	}
+
+	if languages == nil {
+		t.Fatalf("Languages are nil")
+	}
+}
+
+func TestGetLanguageWithCode(t *testing.T) {
+	lang, err := repo.getLanguageWithCode("ru")
+	if err != nil {
+		t.Fatalf("Couldn't get language with code: %v", err)
+	}
+
+	if lang == nil {
+		t.Fatalf("Language is nil")
+	}
+
+	if lang.code != "ru" {
+		t.Fatalf("Language code incorrect")
+	}
+}
+
+func TestPersistAnswer(t *testing.T) {
+	word, err := repo.getRandomWord(testUserId)
+	if err != nil {
+		t.Fatalf("Couldn't get random word: %v", err)
+	}
+
+	params := guessParams{*word, "!@#$%", testUserId}
+	result := guessResult{params, "foobar"}
+
+	err = repo.persistAnswer(result)
+	if err != nil {
+		t.Fatalf("Couldn't persist answer: %v", err)
+	}
+}
+
+func TestAddWordForUser(t *testing.T) {
+	word := word{word:"проверил",stem:"проверить"}
+
+	err := repo.addWordForUser(testUserId, word, "ru")
+	if err != nil {
+		t.Fatalf("Couldn't add word for user: %v", err)
+	}
+}
+
+func TestGetUserLanguage(t *testing.T) {
+	lang, err := repo.getUserLanguage(testUserId)
+	if err != nil {
+		t.Fatalf("Couldn't get user language: %v", err)
+	}
+
+	if lang == nil {
+		t.Fatalf("User language is nil")
+	}
+}
+
+func TestUpdateUserState(t *testing.T) {
+	err := repo.updateUserState(testUserId, awaitingUpload)
+	if err != nil {
+		t.Fatalf("Couldn't update user state: %v", err)
+	}
+
+	user, err := repo.getUser(testUserId)
+	if err != nil {
+		t.Fatalf("Couldn't get user: %v", err)
+	}
+
+	if user.currentState != awaitingUpload {
+		t.Fatalf("Invalid user state")
+	}
+
+	//Second iteration, in case of initial user state was
+	//already awaitingUpload, but for some reasons silent failed
+	err = repo.updateUserState(testUserId, waitingAnswer)
+	if err != nil {
+		t.Fatalf("Couldn't update user state: %v", err)
+	}
+
+	user, err = repo.getUser(testUserId)
+	if err != nil {
+		t.Fatalf("Couldn't get user: %v", err)
+	}
+
+	if user.currentState != waitingAnswer {
+		t.Fatalf("Invalid user state")
+	}
+}
+
+func TestUpdateUserLan(t *testing.T) {
+	err := repo.updateUserLang(testUserId, testLangId)
+	if err != nil {
+		t.Fatalf("Couldn't update user lang: %v", err)
+	}
+
+	user, err := repo.getUser(testUserId)
+	if err != nil {
+		t.Fatalf("Couldn't get user: %v", err)
+	}
+
+	if user.currentLanguage.id != testLangId {
+		t.Fatalf("Invalid user state")
+	}
+
+	//Second iteration, in case of initial user state was
+	//already testLangId, but for some reasons silent failed
+	err = repo.updateUserLang(testUserId, 1)
+	if err != nil {
+		t.Fatalf("Couldn't update user state: %v", err)
+	}
+
+	user, err = repo.getUser(testUserId)
+	if err != nil {
+		t.Fatalf("Couldn't get user: %v", err)
+	}
+
+	if user.currentLanguage.id != 1 {
+		t.Fatalf("Invalid user state")
 	}
 }

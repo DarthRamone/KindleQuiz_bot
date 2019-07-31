@@ -69,39 +69,6 @@ func (repo *repository) getUserLanguage(userId int) (*lang, error) {
 	return &l, nil
 }
 
-func (repo *repository) getAllUserIds() ([]int, error) {
-	var count int
-	err := repo.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := repo.db.Query("SELECT id FROM users")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	res := make([]int, 0, count)
-	for rows.Next() {
-
-		err := rows.Err()
-		if err != nil {
-			return nil, err
-		}
-
-		var id int
-		err = rows.Scan(&id)
-		if err != nil {
-			continue
-		}
-
-		res = append(res, id)
-	}
-
-	return res, nil
-}
-
 func (repo *repository) updateUserState(userId int, state userState) error {
 	_, err := repo.db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
 	if err != nil {
@@ -150,7 +117,7 @@ func (repo *repository) setLastWord(userId int, w word) error {
 	_, err := repo.db.Exec(`
 		INSERT INTO questions (user_id, word_id) 
 		VALUES ($1, $2) 
-		ON CONFLICT (user_id, word_id) 
+		ON CONFLICT (user_id) 
 		    DO UPDATE SET word_id=$2`, userId, w.id)
 	if err != nil {
 		return err
@@ -193,7 +160,8 @@ func (repo *repository) getRandomWord(userId int) (*word, error) {
 	_, err = tx.Exec(`
 		INSERT INTO questions (user_id, word_id) 
 		VALUES ($1, $2) 
-		ON CONFLICT (user_id, word_id) DO UPDATE SET word_id=$2`, userId, wordId)
+		ON CONFLICT (user_id) 
+		    DO UPDATE SET word_id=$2`, userId, wordId)
 
 	if err != nil {
 		_ = tx.Rollback()
@@ -393,7 +361,6 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		}
 	}
 
-	log.Println("Insert user word")
 	_, err = tx.Exec(`
 		INSERT INTO user_words (user_id, word_id)
 		VALUES ($1, $2)

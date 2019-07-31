@@ -14,12 +14,12 @@ import (
 
 const (
 	testUserId = 0
-	langId     = 2
+	testLangId = 2
 )
 
 var (
-	repo = repository{}
-	dbParams = connectionParams{user: "postgres", dbName: "vocab", sslMode: "disable", url:"localhost"}
+	repo     = repository{}
+	dbParams = connectionParams{user: "postgres", dbName: "vocab", sslMode: "disable", url: "localhost"}
 )
 
 func TestMain(m *testing.M) {
@@ -29,10 +29,10 @@ func TestMain(m *testing.M) {
 	}
 
 	postgresOptions := dockertest.RunOptions{
-		Name:"postgres_test",
-		Repository:"postgres",
-		Tag:"11.4",
-		Env:[]string{"POSTGRES_DB=vocab"},
+		Name:       "postgres_test",
+		Repository: "postgres",
+		Tag:        "11.4",
+		Env:        []string{"POSTGRES_DB=vocab"},
 	}
 
 	// pulls an image, creates a container based on it and runs it
@@ -70,8 +70,8 @@ func TestMain(m *testing.M) {
 	pgHostEnv := fmt.Sprintf("PG_HOST=%s", postgres.Container.NetworkSettings.IPAddress)
 
 	gooseOptions := dockertest.RunOptions{
-		Name:"goose",
-		Env:[]string{pgPortEnv, pgHostEnv},
+		Name: "goose",
+		Env:  []string{pgPortEnv, pgHostEnv},
 	}
 
 	goose, err := pool.BuildAndRunWithOptions("build/migrations/Dockerfile", contextPath, &gooseOptions)
@@ -102,6 +102,8 @@ func TestMain(m *testing.M) {
 	if err := pool.Purge(goose); err != nil {
 		log.Fatalf("Could not purge postgres: %s", err)
 	}
+
+	repo.close()
 
 	os.Exit(code)
 }

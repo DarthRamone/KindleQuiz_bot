@@ -1,8 +1,7 @@
 -- +goose Up
 CREATE TABLE questions (
-    user_id integer REFERENCES users,
-    word_id integer REFERENCES words,
-    UNIQUE (user_id, word_id)
+    user_id integer REFERENCES users PRIMARY KEY,
+    word_id integer REFERENCES words
 );
 
 -- +goose Down

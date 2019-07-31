@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
-	"log"
 )
 
 func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) error {
@@ -14,7 +13,6 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) er
 	}
 	defer SQLiteDB.Close()
 
-	log.Println("get languages")
 	langs, err := repo.getLanguages()
 	if err != nil {
 		return fmt.Errorf("get languages: %v", err.Error())
@@ -24,7 +22,6 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) er
 		langMap[l.code] = l.id
 	}
 
-	log.Println("Query words")
 	rows, err := SQLiteDB.Query("SELECT word, stem, lang FROM WORDS")
 	if err != nil {
 		return fmt.Errorf("sqlite: querying words: %v", err.Error())
@@ -41,8 +38,6 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) er
 		if err != nil {
 			return err
 		}
-
-		log.Println("Words iter")
 
 		var lc string
 		w := word{}
