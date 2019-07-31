@@ -15,11 +15,11 @@ services:
     build:
       context: ./../
       dockerfile: build/migrations/Dockerfile
-    volumes:
-      - ./../sql/migrations:/sql
     depends_on:
       - postgres
-    command: ["/migration-entrypoint.sh"]
+    environment:
+      - PG_HOST=postgres
+      - PG_PORT=5432
 
   postgres:
     image: "postgres:11.4"

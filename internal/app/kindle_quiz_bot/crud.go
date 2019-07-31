@@ -41,7 +41,6 @@ type connectionParams struct {
 }
 
 func (repo *repository) connect(p connectionParams) error {
-
 	connStr := fmt.Sprintf("user=%s dbname=%s port=%d sslmode=%s host=%s", p.user, p.dbName, p.port, p.sslMode, p.url)
 
 	log.Printf("DB connection string: %s", connStr)
@@ -52,11 +51,15 @@ func (repo *repository) connect(p connectionParams) error {
 		return err
 	}
 
-	log.Println("get languages")
+	return nil
+}
+
+func (repo *repository) buildLangMap() error {
 	langs, err := repo.getLanguages()
 	if err != nil {
 		return fmt.Errorf("get languages: %v", err.Error())
 	}
+
 	langMap = make(map[string]int, len(langs))
 	for _, l := range langs {
 		langMap[l.code] = l.id
@@ -277,8 +280,6 @@ func (repo *repository) getLang(id int) (*lang, error) {
 }
 
 func (repo *repository) getLanguages() ([]lang, error) {
-
-	log.Println("query langs count")
 	row := repo.db.QueryRow("SELECT COUNT(*) FROM languages")
 	var count int
 	err := row.Scan(&count)
@@ -288,7 +289,6 @@ func (repo *repository) getLanguages() ([]lang, error) {
 
 	langs := make([]lang, 0, count)
 
-	log.Println("query languages")
 	rows, err := repo.db.Query("SELECT * FROM languages")
 	if err != nil {
 		return nil, err
@@ -302,12 +302,10 @@ func (repo *repository) getLanguages() ([]lang, error) {
 			return nil, err
 		}
 
-		log.Println("lang iter")
 		l := lang{}
 		err = rows.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 		if err != nil {
-			fmt.Printf("Get lang: %v", err.Error())
-			continue
+			return nil, fmt.Errorf("Get lang: %v", err.Error())
 		}
 		langs = append(langs, l)
 	}

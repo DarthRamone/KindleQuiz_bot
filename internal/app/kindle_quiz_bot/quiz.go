@@ -328,6 +328,11 @@ func (q *quiz) connectToDB() error {
 		return err
 	}
 
+	err = c.buildLangMap()
+	if err != nil {
+		return err
+	}
+
 	q.repo = &c
 
 	return nil
