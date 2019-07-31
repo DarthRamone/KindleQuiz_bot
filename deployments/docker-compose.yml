@@ -22,7 +22,7 @@ services:
     command: ["/migration-entrypoint.sh"]
 
   postgres:
-    image: "postgres"
+    image: "postgres:11.4"
     environment:
       POSTGRES_DB: "vocab"
     ports:
