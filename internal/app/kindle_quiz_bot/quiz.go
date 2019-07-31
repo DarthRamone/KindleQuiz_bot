@@ -29,7 +29,7 @@ type Quiz interface {
 }
 
 type quiz struct {
-	crud          *crud
+	repo          *repository
 	sender        MessageSender
 	downloadJobs  chan downloadJob
 	migrationJobs chan migrationJob
@@ -86,14 +86,14 @@ type MessageSender interface {
 }
 
 func (q *quiz) Close() {
-	q.crud.close()
+	q.repo.close()
 	close(q.migrationJobs)
 }
 
 func (q *quiz) RequestWord(userId int) {
 	log.Println("request word")
 
-	w, err := q.crud.getRandomWord(userId)
+	w, err := q.repo.getRandomWord(userId)
 
 	if err == noWordsFound {
 		q.sendMessage(userId, "No words found. Please run /upload and follow instructions")
@@ -124,7 +124,7 @@ func (q *quiz) ShowHelp(userId int) {
 
 func (q *quiz) Greetings(userId int) {
 
-	_, err := q.crud.createUser(userId)
+	_, err := q.repo.createUser(userId)
 	if err != nil {
 		//TODO: error handle
 	} else {
@@ -135,7 +135,7 @@ Next run /quiz and have some fun, idk. You can ask me for /help also.`
 }
 
 func (q *quiz) SelectLang(userId int) {
-	langs, err := q.crud.getLanguages()
+	langs, err := q.repo.getLanguages()
 	if err != nil {
 		return //TODO Error hanling
 	}
@@ -145,7 +145,7 @@ func (q *quiz) SelectLang(userId int) {
 		msg += fmt.Sprintf("[%s] %s\n", l.code, l.englishName)
 	}
 
-	err = q.crud.updateUserState(userId, awaitingLanguage)
+	err = q.repo.updateUserState(userId, awaitingLanguage)
 	if err != nil {
 		//TODO: what?
 	}
@@ -154,7 +154,7 @@ func (q *quiz) SelectLang(userId int) {
 }
 
 func (q *quiz) AwaitUpload(userId int) {
-	err := q.crud.updateUserState(userId, awaitingUpload)
+	err := q.repo.updateUserState(userId, awaitingUpload)
 	if err != nil {
 		return //TODO: Error handle
 	}
@@ -163,7 +163,7 @@ func (q *quiz) AwaitUpload(userId int) {
 }
 
 func (q *quiz) CancelOperation(userId int) {
-	user, err := q.crud.getUser(userId)
+	user, err := q.repo.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
 	}
@@ -173,7 +173,7 @@ func (q *quiz) CancelOperation(userId int) {
 		return
 	}
 
-	err = q.crud.updateUserState(userId, readyForQuestion)
+	err = q.repo.updateUserState(userId, readyForQuestion)
 	if err != nil {
 		return //TODO: Error handle
 	}
@@ -182,7 +182,7 @@ func (q *quiz) CancelOperation(userId int) {
 }
 
 func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
-	u, err := q.crud.getUser(userId)
+	u, err := q.repo.getUser(userId)
 	if err != nil {
 		return //TODO: error handle
 	}
@@ -226,7 +226,7 @@ func NewQuiz(s MessageSender) Quiz {
 }
 
 func (q *quiz) guessWord(u user, guess string) {
-	word, err := q.crud.getLastWord(u.id)
+	word, err := q.repo.getLastWord(u.id)
 	if err != nil {
 		q.sendMessage(u.id, err.Error())
 		return
@@ -238,37 +238,37 @@ func (q *quiz) guessWord(u user, guess string) {
 		return
 	}
 
-	err = q.crud.deleteLastWord(u.id)
+	err = q.repo.deleteLastWord(u.id)
 
 	p := guessParams{*word, guess, u.id}
 	r := guessResult{p, translated}
 
 	q.tellResult(r)
 
-	err = q.crud.persistAnswer(r)
+	err = q.repo.persistAnswer(r)
 	if err != nil {
 		log.Printf("Failed to write answer: %v\n", err.Error())
 	}
 
-	err = q.crud.updateUserState(u.id, readyForQuestion)
+	err = q.repo.updateUserState(u.id, readyForQuestion)
 	if err != nil {
 		//TODO: what?
 	}
 }
 
 func (q *quiz) tryToMigrate(userId int, path string) error {
-	err := q.crud.updateUserState(userId, migrationInProgress)
+	err := q.repo.updateUserState(userId, migrationInProgress)
 	if err != nil {
 		return fmt.Errorf("migrate: update state: %v", err.Error())
 	}
 
-	err = migrateFromKindleSQLite(path, userId, q.crud)
+	err = migrateFromKindleSQLite(path, userId, q.repo)
 	if err != nil {
 		q.sendMessage(userId, "Looks like db file in incorrect format. Try again.")
 		return nil
 	}
 
-	err = q.crud.updateUserState(userId, readyForQuestion)
+	err = q.repo.updateUserState(userId, readyForQuestion)
 	if err != nil {
 		return fmt.Errorf("downloading document: %v", err.Error())
 	}
@@ -302,13 +302,13 @@ func compareWords(w1, w2 string) bool {
 }
 
 func (q *quiz) setLanguage(u user, lc string) {
-	l, err := q.crud.getLanguageWithCode(lc)
+	l, err := q.repo.getLanguageWithCode(lc)
 	if err != nil {
 		q.sendMessage(u.id, "Invalid language code")
 		return
 	}
 
-	err = q.crud.updateUserLang(u.id, l.id)
+	err = q.repo.updateUserLang(u.id, l.id)
 	if err != nil {
 		return //TODO
 	}
@@ -321,14 +321,14 @@ func (q *quiz) showMigrationInProgressWarn(userId int) {
 }
 
 func (q *quiz) connectToDB() error {
-	c := crud{}
+	c := repository{}
 	p := connectionParams{user: "postgres", dbName: "vocab", port: 5432, sslMode: "disable", url:"postgres"}
 	err := c.connect(p)
 	if err != nil {
 		return err
 	}
 
-	q.crud = &c
+	q.repo = &c
 
 	return nil
 }

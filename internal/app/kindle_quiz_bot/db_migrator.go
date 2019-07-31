@@ -7,7 +7,7 @@ import (
 	"log"
 )
 
-func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
+func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) error {
 	SQLiteDB, err := sql.Open("sqlite3", sqlitePath)
 	if err != nil {
 		return fmt.Errorf("db migration: %v", err.Error())
@@ -15,7 +15,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
 	defer SQLiteDB.Close()
 
 	log.Println("get languages")
-	langs, err := crud.getLanguages()
+	langs, err := repo.getLanguages()
 	if err != nil {
 		return fmt.Errorf("get languages: %v", err.Error())
 	}
@@ -46,7 +46,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, crud *crud) error {
 			return fmt.Errorf("migration: scan word: %v", err.Error())
 		}
 
-		err = crud.addWordForUser(userId, w, lc)
+		err = repo.addWordForUser(userId, w, lc)
 		if err != nil {
 			return fmt.Errorf("migration: add word: %v", err.Error())
 		}

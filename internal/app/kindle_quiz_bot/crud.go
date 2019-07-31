@@ -27,7 +27,7 @@ const (
 	awaitingLanguage
 )
 
-type crud struct {
+type repository struct {
 	db *sql.DB
 }
 
@@ -40,20 +40,20 @@ type connectionParams struct {
 	url      string
 }
 
-func (crud *crud) connect(p connectionParams) error {
+func (repo *repository) connect(p connectionParams) error {
 
 	connStr := fmt.Sprintf("user=%s dbname=%s port=%d sslmode=%s host=%s", p.user, p.dbName, p.port, p.sslMode, p.url)
 
 	log.Printf("DB connection string: %s", connStr)
 
 	var err error
-	crud.db, err = sql.Open("postgres", connStr)
+	repo.db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		return err
 	}
 
 	log.Println("get languages")
-	langs, err := crud.getLanguages()
+	langs, err := repo.getLanguages()
 	if err != nil {
 		return fmt.Errorf("get languages: %v", err.Error())
 	}
@@ -65,13 +65,13 @@ func (crud *crud) connect(p connectionParams) error {
 	return nil
 }
 
-func (crud *crud) close() {
-	crud.db.Close()
+func (repo *repository) close() {
+	repo.db.Close()
 }
 
-func (crud *crud) getUserLanguage(userId int) (*lang, error) {
+func (repo *repository) getUserLanguage(userId int) (*lang, error) {
 	l := lang{}
-	err := crud.db.QueryRow(`
+	err := repo.db.QueryRow(`
 		SELECT * FROM languages 
 		WHERE id=(SELECT current_lang FROM users WHERE id=$1)`, userId).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
@@ -81,14 +81,14 @@ func (crud *crud) getUserLanguage(userId int) (*lang, error) {
 	return &l, nil
 }
 
-func (crud *crud) getAllUserIds() ([]int, error) {
+func (repo *repository) getAllUserIds() ([]int, error) {
 	var count int
-	err := crud.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	err := repo.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := crud.db.Query("SELECT id FROM users")
+	rows, err := repo.db.Query("SELECT id FROM users")
 	if err != nil {
 		return nil, err
 	}
@@ -114,32 +114,32 @@ func (crud *crud) getAllUserIds() ([]int, error) {
 	return res, nil
 }
 
-func (crud *crud) updateUserState(userId int, state userState) error {
-	_, err := crud.db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
+func (repo *repository) updateUserState(userId int, state userState) error {
+	_, err := repo.db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (crud *crud) updateUserLang(userId, langId int) error {
-	_, err := crud.db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userId)
+func (repo *repository) updateUserLang(userId, langId int) error {
+	_, err := repo.db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userId)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (crud *crud) createUser(userId int) (*user, error) {
+func (repo *repository) createUser(userId int) (*user, error) {
 
-	lang, err := crud.getLang(defaultLanguageId)
+	lang, err := repo.getLang(defaultLanguageId)
 	if err != nil {
 		return nil, err
 	}
 
 	u := user{userId, readyForQuestion, lang}
 
-	_, err = crud.db.Exec(`
+	_, err = repo.db.Exec(`
 		INSERT INTO users (id, current_lang) 
 		VALUES ($1, $2) 
 		ON CONFLICT DO NOTHING`, userId, defaultLanguageId)
@@ -150,16 +150,16 @@ func (crud *crud) createUser(userId int) (*user, error) {
 	return &u, nil
 }
 
-func (crud *crud) deleteLastWord(userId int) error {
-	_, err := crud.db.Exec("DELETE FROM questions WHERE user_id=$1", userId)
+func (repo *repository) deleteLastWord(userId int) error {
+	_, err := repo.db.Exec("DELETE FROM questions WHERE user_id=$1", userId)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (crud *crud) setLastWord(userId int, w word) error {
-	_, err := crud.db.Exec(`
+func (repo *repository) setLastWord(userId int, w word) error {
+	_, err := repo.db.Exec(`
 		INSERT INTO questions (user_id, word_id) 
 		VALUES ($1, $2) 
 		ON CONFLICT (user_id) 
@@ -170,21 +170,21 @@ func (crud *crud) setLastWord(userId int, w word) error {
 	return nil
 }
 
-func (crud *crud) getLastWord(userId int) (*word, error) {
-	row := crud.db.QueryRow("SELECT word_id FROM questions WHERE user_id=$1", userId)
+func (repo *repository) getLastWord(userId int) (*word, error) {
+	row := repo.db.QueryRow("SELECT word_id FROM questions WHERE user_id=$1", userId)
 	var wordId int
 	err := row.Scan(&wordId)
 	if err != nil {
 		return nil, err
 	}
 
-	return crud.getWord(wordId)
+	return repo.getWord(wordId)
 }
 
-func (crud *crud) getRandomWord(userId int) (*word, error) {
+func (repo *repository) getRandomWord(userId int) (*word, error) {
 	var wordId int
 
-	tx, err := crud.db.Begin()
+	tx, err := repo.db.Begin()
 
 	if err != nil {
 		return nil, err
@@ -224,11 +224,11 @@ func (crud *crud) getRandomWord(userId int) (*word, error) {
 		return nil, err
 	}
 
-	return crud.getWord(wordId)
+	return repo.getWord(wordId)
 }
 
-func (crud *crud) getWord(wordId int) (*word, error) {
-	wordRow := crud.db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
+func (repo *repository) getWord(wordId int) (*word, error) {
+	wordRow := repo.db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
 
 	w := word{}
 	var langId int
@@ -237,7 +237,7 @@ func (crud *crud) getWord(wordId int) (*word, error) {
 		return nil, fmt.Errorf("random word row scan: %v", err.Error())
 	}
 
-	l, err := crud.getLang(langId)
+	l, err := repo.getLang(langId)
 	if err != nil {
 		return nil, err
 	}
@@ -246,8 +246,8 @@ func (crud *crud) getWord(wordId int) (*word, error) {
 	return &w, nil
 }
 
-func (crud *crud) getUser(id int) (*user, error) {
-	userRow := crud.db.QueryRow("SELECT * FROM users WHERE id=$1", id)
+func (repo *repository) getUser(id int) (*user, error) {
+	userRow := repo.db.QueryRow("SELECT * FROM users WHERE id=$1", id)
 	u := user{}
 	var langId int
 	err := userRow.Scan(&u.id, &langId, &u.currentState)
@@ -256,7 +256,7 @@ func (crud *crud) getUser(id int) (*user, error) {
 		return nil, err
 	}
 
-	l, err := crud.getLang(langId)
+	l, err := repo.getLang(langId)
 	if err != nil {
 		return nil, err
 	}
@@ -266,8 +266,8 @@ func (crud *crud) getUser(id int) (*user, error) {
 	return &u, nil
 }
 
-func (crud *crud) getLang(id int) (*lang, error) {
-	langRow := crud.db.QueryRow("SELECT * FROM languages WHERE id=$1", id)
+func (repo *repository) getLang(id int) (*lang, error) {
+	langRow := repo.db.QueryRow("SELECT * FROM languages WHERE id=$1", id)
 	l := lang{}
 	err := langRow.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
@@ -276,10 +276,10 @@ func (crud *crud) getLang(id int) (*lang, error) {
 	return &l, nil
 }
 
-func (crud *crud) getLanguages() ([]lang, error) {
+func (repo *repository) getLanguages() ([]lang, error) {
 
 	log.Println("query langs count")
-	row := crud.db.QueryRow("SELECT COUNT(*) FROM languages")
+	row := repo.db.QueryRow("SELECT COUNT(*) FROM languages")
 	var count int
 	err := row.Scan(&count)
 	if err != nil {
@@ -289,7 +289,7 @@ func (crud *crud) getLanguages() ([]lang, error) {
 	langs := make([]lang, 0, count)
 
 	log.Println("query languages")
-	rows, err := crud.db.Query("SELECT * FROM languages")
+	rows, err := repo.db.Query("SELECT * FROM languages")
 	if err != nil {
 		return nil, err
 	}
@@ -315,25 +315,25 @@ func (crud *crud) getLanguages() ([]lang, error) {
 	return langs, nil
 }
 
-func (crud *crud) getLanguageWithCode(code string) (*lang, error) {
+func (repo *repository) getLanguageWithCode(code string) (*lang, error) {
 	l := lang{}
-	err := crud.db.QueryRow("SELECT * FROM languages WHERE code=$1", code).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
+	err := repo.db.QueryRow("SELECT * FROM languages WHERE code=$1", code).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
 		return nil, fmt.Errorf("lang with code: %v", err.Error())
 	}
 	return &l, nil
 }
 
-func (crud *crud) persistAnswer(r guessResult) error {
+func (repo *repository) persistAnswer(r guessResult) error {
 
 	p := r.params
 
-	tx, err := crud.db.Begin()
+	tx, err := repo.db.Begin()
 	if err != nil {
 		return err
 	}
 
-	lang, err := crud.getUserLanguage(r.params.userId)
+	lang, err := repo.getUserLanguage(r.params.userId)
 	if err != nil {
 		//TODO: error handling
 		_ = tx.Rollback()
@@ -369,9 +369,9 @@ func (crud *crud) persistAnswer(r guessResult) error {
 	return nil
 }
 
-func (crud *crud) addWordForUser(userId int, word word, lc string) error {
+func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 
-	tx, err := crud.db.Begin()
+	tx, err := repo.db.Begin()
 	if err != nil {
 		return fmt.Errorf("postgre tx begin: %v\n", err.Error())
 	}
