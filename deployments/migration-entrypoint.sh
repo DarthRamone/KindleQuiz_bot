@@ -1,11 +1,9 @@
 #!/bin/sh
-# wait-for-postgres.sh
+# migration-entrypoint.sh
 
 set -e
 
-host="$1"
-
-until PGPASSWORD=$POSTGRES_PASSWORD psql -h "$host" -U "postgres" -c '\q'; do
+until PGPASSWORD=$POSTGRES_PASSWORD psql -h "postgres" -U "postgres" -c '\q'; do
   >&2 echo "Postgres is unavailable - sleeping"
   sleep 1
 done

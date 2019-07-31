@@ -4,7 +4,7 @@ RUN go get -u github.com/pressly/goose/cmd/goose
 
 RUN mkdir sql
 
-COPY deployments/wait-for-postgres.sh /
+COPY deployments/migration-entrypoint.sh /
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

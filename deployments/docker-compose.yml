@@ -19,7 +19,7 @@ services:
       - ./../sql/migrations:/sql
     depends_on:
       - postgres
-    command: ["/wait-for-postgres.sh", "postgres"]
+    command: ["/migration-entrypoint.sh"]
 
   postgres:
     image: "postgres"
