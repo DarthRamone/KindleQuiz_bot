@@ -14,7 +14,6 @@ const (
 
 var (
 	noWordsFound = errors.New("No words found for user")
-	langMap      map[string]int
 )
 
 type userState int
@@ -49,20 +48,6 @@ func (repo *repository) connect(p connectionParams) error {
 	repo.db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func (repo *repository) buildLangMap() error {
-	langs, err := repo.getLanguages()
-	if err != nil {
-		return fmt.Errorf("get languages: %v", err.Error())
-	}
-
-	langMap = make(map[string]int, len(langs))
-	for _, l := range langs {
-		langMap[l.code] = l.id
 	}
 
 	return nil
@@ -165,7 +150,7 @@ func (repo *repository) setLastWord(userId int, w word) error {
 	_, err := repo.db.Exec(`
 		INSERT INTO questions (user_id, word_id) 
 		VALUES ($1, $2) 
-		ON CONFLICT (user_id) 
+		ON CONFLICT (user_id, word_id) 
 		    DO UPDATE SET word_id=$2`, userId, w.id)
 	if err != nil {
 		return err
@@ -374,16 +359,15 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		return fmt.Errorf("postgre tx begin: %v\n", err.Error())
 	}
 
-	//Trying to insert word with ignoring duplicate keys
-	langId, ok := langMap[lc]
-	if !ok {
-		//TODO: error handling?
+	var langId int
+	err = tx.QueryRow(`
+			SELECT current_lang 
+			FROM users
+			WHERE id=$1`, userId).Scan(&langId)
+	if err != nil {
 		_ = tx.Rollback()
-		fmt.Printf("No such lang code found: %s", lc)
 		return err
 	}
-
-	log.Println("Insert word")
 
 	var wordId int
 	err = tx.QueryRow(`
@@ -413,7 +397,8 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 	_, err = tx.Exec(`
 		INSERT INTO user_words (user_id, word_id)
 		VALUES ($1, $2)
-		ON CONFLICT DO NOTHING`, userId, wordId)
+		ON CONFLICT (user_id, word_id) 
+		    DO NOTHING`, userId, wordId)
 
 	if err != nil {
 		//TODO: error handling?

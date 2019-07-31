@@ -29,7 +29,12 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) er
 	if err != nil {
 		return fmt.Errorf("sqlite: querying words: %v", err.Error())
 	}
-	defer rows.Close()
+	defer func() {
+		err = rows.Close()
+		if err != nil {
+			//TODO: error handle
+		}
+	}()
 
 	for rows.Next() {
 		err := rows.Err()
