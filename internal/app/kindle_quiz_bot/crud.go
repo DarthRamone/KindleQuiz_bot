@@ -5,12 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-
 	_ "github.com/lib/pq"
-)
-
-const (
-	defaultLanguageId = 2 //English
 )
 
 var (
@@ -89,18 +84,12 @@ func (repo *repository) updateUserLang(userId, langId int) error {
 }
 
 func (repo *repository) createUser(userId int) (*user, error) {
+	u := user{userId, readyForQuestion}
 
-	lang, err := repo.getLang(defaultLanguageId)
-	if err != nil {
-		return nil, err
-	}
-
-	u := user{userId, readyForQuestion, lang}
-
-	_, err = repo.db.Exec(`
-		INSERT INTO users (id, current_lang) 
-		VALUES ($1, $2) 
-		ON CONFLICT DO NOTHING`, userId, defaultLanguageId)
+	_, err := repo.db.Exec(`
+		INSERT INTO users (id) 
+		VALUES ($1)
+		ON CONFLICT DO NOTHING`, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -214,13 +203,6 @@ func (repo *repository) getUser(id int) (*user, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	l, err := repo.getLang(langId)
-	if err != nil {
-		return nil, err
-	}
-
-	u.currentLanguage = l
 
 	return &u, nil
 }

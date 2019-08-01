@@ -61,7 +61,6 @@ type word struct {
 type user struct {
 	id              int
 	currentState    userState
-	currentLanguage *lang
 }
 
 type lang struct {
@@ -233,7 +232,12 @@ func (q *quiz) guessWord(u user, guess string) {
 		return
 	}
 
-	translated, err := translateWord(*word, u.currentLanguage)
+	lang, err := q.repo.getUserLanguage(u.id)
+	if err != nil {
+		q.sendMessage(u.id, err.Error())
+	}
+
+	translated, err := translateWord(*word, lang)
 	if err != nil {
 		q.sendMessage(u.id, err.Error())
 		return

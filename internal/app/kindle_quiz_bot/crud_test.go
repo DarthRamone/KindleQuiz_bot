@@ -206,17 +206,22 @@ func TestUpdateUserState(t *testing.T) {
 }
 
 func TestUpdateUserLan(t *testing.T) {
-	err := repo.updateUserLang(testUserId, testLangId)
+	err := repo.updateUserLang(testUserId, -1)
+	if err == nil {
+		t.Fatalf("User lang shouldn't be updated")
+	}
+
+	err = repo.updateUserLang(testUserId, testLangId)
 	if err != nil {
 		t.Fatalf("Couldn't update user lang: %v", err)
 	}
 
-	user, err := repo.getUser(testUserId)
+	lang, err := repo.getUserLanguage(testUserId)
 	if err != nil {
 		t.Fatalf("Couldn't get user: %v", err)
 	}
 
-	if user.currentLanguage.id != testLangId {
+	if lang.id != testLangId {
 		t.Fatalf("Invalid user state")
 	}
 
@@ -227,12 +232,12 @@ func TestUpdateUserLan(t *testing.T) {
 		t.Fatalf("Couldn't update user state: %v", err)
 	}
 
-	user, err = repo.getUser(testUserId)
+	lang, err = repo.getUserLanguage(testUserId)
 	if err != nil {
 		t.Fatalf("Couldn't get user: %v", err)
 	}
 
-	if user.currentLanguage.id != 1 {
+	if lang.id != 1 {
 		t.Fatalf("Invalid user state")
 	}
 }
