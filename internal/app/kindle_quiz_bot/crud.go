@@ -32,12 +32,11 @@ type repository struct {
 }
 
 type connectionParams struct {
-	user     string
-	password string
-	dbName   string
-	port     int
-	sslMode  string
-	url      string
+	user    string
+	dbName  string
+	port    int
+	sslMode string
+	url     string
 }
 
 func (repo *repository) connect(p connectionParams) error {
@@ -300,6 +299,10 @@ func (repo *repository) persistAnswer(r guessResult) error {
 	_, err = tx.Exec(`
 		INSERT INTO answers (word_id, user_id, correct, user_lang, guess) 
 		VALUES ($1, $2, $3, $4, $5)`, p.word.id, p.userId, r.correct(), lang.id, p.guess)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
 
 	var field string
 	if r.correct() {
@@ -351,7 +354,7 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		    DO UPDATE SET word=$1 RETURNING id`, word.word, word.stem, langId).Scan(&wordId)
 
 	if err != nil {
-		log.Printf("insertion word: %v\n", err.Error())
+		log.Printf("insertion word: %v\n", err)
 		log.Println("Query existing word id")
 		//If error happened, probably word with same key was already added, trying to get id
 		err = tx.QueryRow(`
@@ -362,7 +365,7 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		if err != nil {
 			//TODO: error handling?
 			_ = tx.Rollback()
-			fmt.Printf(err.Error())
+			fmt.Printf("add words for user: %v", err)
 			return err
 		}
 	}

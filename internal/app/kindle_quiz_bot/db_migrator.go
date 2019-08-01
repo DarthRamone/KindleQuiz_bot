@@ -30,6 +30,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) er
 		err = rows.Close()
 		if err != nil {
 			//TODO: error handle
+			fmt.Printf("sqlite rows close: %v", err)
 		}
 	}()
 

@@ -61,6 +61,9 @@ func TestMain(m *testing.M) {
 	}
 
 	contextPath, err := filepath.Abs("../../../")
+	if err != nil {
+		fmt.Printf("unable to get context path: %v", err)
+	}
 	fmt.Printf("Path: %s\n", contextPath)
 
 	dockerfilePath := contextPath + "/build/migrations/Dockerfile"

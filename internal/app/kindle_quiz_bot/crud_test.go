@@ -149,7 +149,7 @@ func TestPersistAnswer(t *testing.T) {
 }
 
 func TestAddWordForUser(t *testing.T) {
-	word := word{word:"проверил",stem:"проверить"}
+	word := word{word: "проверил", stem: "проверить"}
 
 	err := repo.addWordForUser(testUserId, word, "ru")
 	if err != nil {
@@ -158,12 +158,12 @@ func TestAddWordForUser(t *testing.T) {
 }
 
 func TestGetUserLanguage(t *testing.T) {
-	lang, err := repo.getUserLanguage(-1)
+	_, err := repo.getUserLanguage(-1)
 	if err == nil {
 		t.Fatalf("Lang should be nil")
 	}
 
-	lang, err = repo.getUserLanguage(testUserId)
+	lang, err := repo.getUserLanguage(testUserId)
 	if err != nil {
 		t.Fatalf("Couldn't get user language: %v", err)
 	}

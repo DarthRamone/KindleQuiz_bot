@@ -137,7 +137,8 @@ Next run /quiz and have some fun, idk. You can ask me for /help also.`
 func (q *quiz) SelectLang(userId int) {
 	langs, err := q.repo.getLanguages()
 	if err != nil {
-		return //TODO Error hanling
+		log.Printf("Couldn't update user state: %v", err)
+		return
 	}
 
 	msg := "Select language code:\n\n"
@@ -147,7 +148,7 @@ func (q *quiz) SelectLang(userId int) {
 
 	err = q.repo.updateUserState(userId, awaitingLanguage)
 	if err != nil {
-		//TODO: what?
+		log.Printf("Couldn't update user state: %v", err)
 	}
 
 	q.sendMessage(userId, msg)
@@ -239,6 +240,9 @@ func (q *quiz) guessWord(u user, guess string) {
 	}
 
 	err = q.repo.deleteLastWord(u.id)
+	if err != nil {
+		q.sendMessage(u.id, err.Error())
+	}
 
 	p := guessParams{*word, guess, u.id}
 	r := guessResult{p, translated}
@@ -252,7 +256,7 @@ func (q *quiz) guessWord(u user, guess string) {
 
 	err = q.repo.updateUserState(u.id, readyForQuestion)
 	if err != nil {
-		//TODO: what?
+		log.Printf("Couldn't update user state: %v", err)
 	}
 }
 
@@ -354,7 +358,7 @@ func (t *guessResult) correct() bool {
 func (q *quiz) sendMessage(userId int, text string) {
 	err := q.sender.SendMessage(userId, text)
 	if err != nil {
-		//TODO: Error handle
+		log.Printf("Couldn't send message: %v", err)
 	}
 }
 
