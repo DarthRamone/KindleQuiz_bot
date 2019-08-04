@@ -52,15 +52,15 @@ type guessResult struct {
 }
 
 type word struct {
-	id   int
-	word string
-	stem string
-	lang *lang
+	id     int
+	word   string
+	stem   string
+	langId int
 }
 
 type user struct {
-	id              int
-	currentState    userState
+	id           int
+	currentState userState
 }
 
 type lang struct {
@@ -237,7 +237,7 @@ func (q *quiz) guessWord(u user, guess string) {
 		q.sendMessage(u.id, err.Error())
 	}
 
-	translated, err := translateWord(*word, lang)
+	translated, err := q.translateWord(*word, lang)
 	if err != nil {
 		q.sendMessage(u.id, err.Error())
 		return
@@ -284,11 +284,16 @@ func (q *quiz) tryToMigrate(userId int, path string) error {
 	return nil
 }
 
-func translateWord(w word, dst *lang) (string, error) {
+func(q *quiz) translateWord(w word, dst *lang) (string, error) {
+	lang, err := q.repo.getLang(w.langId)
+	if err != nil {
+		return "", err
+	}
+
 	translated, err := gtranslate.TranslateWithParams(
 		w.word,
 		gtranslate.TranslationParams{
-			From:  w.lang.code,
+			From:  lang.code,
 			To:    dst.code,
 			Delay: time.Second,
 			Tries: 5,
@@ -330,7 +335,7 @@ func (q *quiz) showMigrationInProgressWarn(userId int) {
 
 func (q *quiz) connectToDB() error {
 	c := repository{}
-	p := connectionParams{user: "postgres", dbName: "vocab", port: 5432, sslMode: "disable", url:"postgres"}
+	p := connectionParams{user: "postgres", dbName: "vocab", port: 5432, sslMode: "disable", url: "postgres"}
 	err := c.connect(p)
 	if err != nil {
 		return err
@@ -350,8 +355,15 @@ func (q *quiz) tellResult(r guessResult) {
 }
 
 func (q *quiz) ask(r guessRequest) {
+
+	lang, err := q.repo.getLang(r.word.langId)
+	if err != nil {
+		q.sendMessage(r.userId, err.Error())
+		return
+	}
+
 	w := r.word
-	question := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, w.lang.englishName)
+	question := fmt.Sprintf("Word is: %s; Stem: %s; Lang: %s\n", w.word, w.stem, lang.englishName)
 	q.sendMessage(r.userId, question)
 }
 
@@ -379,7 +391,6 @@ func (q *quiz) migrationWorker(jobs <-chan migrationJob) {
 				}
 			}()
 
-
 			q.sendMessage(userId, "Processing...")
 
 			err := q.tryToMigrate(userId, path)
@@ -393,7 +404,7 @@ func (q *quiz) migrationWorker(jobs <-chan migrationJob) {
 	}
 }
 
-func (q *quiz) downloadWorker(jobs <- chan downloadJob) {
+func (q *quiz) downloadWorker(jobs <-chan downloadJob) {
 	for job := range jobs {
 		userId := job.userId
 

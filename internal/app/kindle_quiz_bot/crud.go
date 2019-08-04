@@ -179,17 +179,10 @@ func (repo *repository) getWord(wordId int) (*word, error) {
 	wordRow := repo.db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
 
 	w := word{}
-	var langId int
-	err := wordRow.Scan(&w.word, &w.stem, &langId, &w.id)
+	err := wordRow.Scan(&w.word, &w.stem, &w.langId, &w.id)
 	if err != nil {
 		return nil, fmt.Errorf("random word row scan: %v", err.Error())
 	}
-
-	l, err := repo.getLang(langId)
-	if err != nil {
-		return nil, err
-	}
-	w.lang = l
 
 	return &w, nil
 }
@@ -341,7 +334,7 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		err = tx.QueryRow(`
 			SELECT id
 			FROM words
-			WHERE word=$1 AND stem=$2 AND lang=$3`, word.word, word.stem, word.lang).Scan(&wordId)
+			WHERE word=$1 AND stem=$2 AND lang=$3`, word.word, word.stem, word.langId).Scan(&wordId)
 
 		if err != nil {
 			_ = tx.Rollback()
