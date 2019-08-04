@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	_ "github.com/lib/pq"
+	"log"
 )
 
 var (
@@ -312,7 +312,6 @@ func (repo *repository) persistAnswer(r guessResult) error {
 }
 
 func (repo *repository) addWordForUser(userId int, word word, lc string) error {
-
 	tx, err := repo.db.Begin()
 	if err != nil {
 		return fmt.Errorf("postgre tx begin: %v\n", err.Error())
@@ -345,7 +344,6 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 			WHERE word=$1 AND stem=$2 AND lang=$3`, word.word, word.stem, word.lang).Scan(&wordId)
 
 		if err != nil {
-			//TODO: error handling?
 			_ = tx.Rollback()
 			fmt.Printf("add words for user: %v", err)
 			return err
@@ -359,7 +357,6 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		    DO NOTHING`, userId, wordId)
 
 	if err != nil {
-		//TODO: error handling?
 		_ = tx.Rollback()
 		return fmt.Errorf("postgre: inserting user_word: %v", err.Error())
 	}

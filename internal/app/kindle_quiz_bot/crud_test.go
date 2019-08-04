@@ -39,6 +39,11 @@ func TestGetRandomWord(t *testing.T) {
 		t.Fatalf("Couldn't get random word: %v", err)
 	}
 
+	_, err = repo.getRandomWord(-1)
+	if err != noWordsFound {
+		t.Fatalf("Words shouldn't be found")
+	}
+
 	if testWord == nil {
 		t.Fatalf("Word is nil")
 	}

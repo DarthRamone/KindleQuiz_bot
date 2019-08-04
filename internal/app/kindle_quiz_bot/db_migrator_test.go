@@ -77,7 +77,12 @@ func TestMain(m *testing.M) {
 		Env:  []string{pgPortEnv, pgHostEnv},
 	}
 
-	goose, err := pool.BuildAndRunWithOptions("build/migrations/Dockerfile", contextPath, &gooseOptions)
+	buildOptions := dockertest.BuildOptions{
+		Dockerfile:"build/migrations/Dockerfile",
+		ContextDir:contextPath,
+	}
+
+	goose, err := pool.BuildAndRunWithOptions(&buildOptions, &gooseOptions)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
