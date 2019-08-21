@@ -1,18 +1,16 @@
 # github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78
 github.com/Azure/go-ansiterm/winterm
 github.com/Azure/go-ansiterm
-# github.com/DarthRamone/dockertest v0.0.0-20190731113344-2ee4ed9d057b
-github.com/DarthRamone/dockertest
-# github.com/DarthRamone/gtranslate v0.0.0-20190723124842-33870c785bad
-github.com/DarthRamone/gtranslate
-# github.com/Microsoft/go-winio v0.4.13
+# github.com/Microsoft/go-winio v0.4.14
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
 # github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5
 github.com/Nvveen/Gotty
+# github.com/bregydoc/gtranslate v0.0.0-20190803100511-2942db9d3610
+github.com/bregydoc/gtranslate
 # github.com/cenkalti/backoff v2.2.1+incompatible
 github.com/cenkalti/backoff
-# github.com/containerd/continuity v0.0.0-20190426062206-aaeac12a7ffc
+# github.com/containerd/continuity v0.0.0-20190815185530-f2a389ac0a02
 github.com/containerd/continuity/pathdriver
 # github.com/docker/go-connections v0.4.0
 github.com/docker/go-connections/nat
@@ -35,7 +33,8 @@ github.com/opencontainers/image-spec/specs-go/v1
 github.com/opencontainers/image-spec/specs-go
 # github.com/opencontainers/runc v0.1.1
 github.com/opencontainers/runc/libcontainer/user
-# github.com/ory/dockertest v3.3.4+incompatible
+# github.com/ory/dockertest v3.3.5+incompatible
+github.com/ory/dockertest
 github.com/ory/dockertest/docker
 github.com/ory/dockertest/docker/opts
 github.com/ory/dockertest/docker/pkg/archive
@@ -74,9 +73,9 @@ github.com/robertkrimen/otto/token
 github.com/sirupsen/logrus
 # github.com/technoweenie/multipartstreamer v1.0.1
 github.com/technoweenie/multipartstreamer
-# golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
+# golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
 golang.org/x/net/context
-# golang.org/x/sys v0.0.0-20190730183949-1393eb018365
+# golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a
 golang.org/x/sys/windows
 golang.org/x/sys/unix
 # golang.org/x/text v0.3.2

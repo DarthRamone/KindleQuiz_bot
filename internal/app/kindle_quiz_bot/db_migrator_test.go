@@ -2,7 +2,7 @@ package kindle_quiz_bot
 
 import (
 	"fmt"
-	"github.com/DarthRamone/dockertest"
+	"github.com/ory/dockertest"
 	_ "github.com/lib/pq"
 	"log"
 	"os"
@@ -82,7 +82,7 @@ func TestMain(m *testing.M) {
 		ContextDir:contextPath,
 	}
 
-	goose, err := pool.BuildAndRunWithOptions(&buildOptions, &gooseOptions)
+	goose, err := pool.BuildAndRunWithBuildOptions(&buildOptions, &gooseOptions)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}

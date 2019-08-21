@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -180,29 +181,44 @@ type RunOptions struct {
 	Privileged   bool
 }
 
-// BuildAndRunWithOptions builds and starts a docker container.
-// Optional modifier functions can be passed in order to change the hostconfig values not covered in RunOptions
-func (d *Pool) BuildAndRunWithOptions(dockerfilePath, contextPath string, opts *RunOptions, hcOpts ...func(*dc.HostConfig)) (*Resource, error) {
+// BuildOptions is used to pass in optional parameters when building a container
+type BuildOptions struct {
+	Dockerfile string
+	ContextDir string
+}
 
+// BuildAndRunWithBuildOptions builds and starts a docker container.
+// Optional modifier functions can be passed in order to change the hostconfig values not covered in RunOptions
+func (d *Pool) BuildAndRunWithBuildOptions(buildOpts *BuildOptions, runOpts *RunOptions, hcOpts ...func(*dc.HostConfig)) (*Resource, error) {
 	err := d.Client.BuildImage(dc.BuildImageOptions{
-		Name:         opts.Name,
-		Dockerfile:   dockerfilePath,
+		Name:         runOpts.Name,
+		Dockerfile:   buildOpts.Dockerfile,
 		OutputStream: ioutil.Discard,
-		ContextDir:   contextPath,
+		ContextDir:   buildOpts.ContextDir,
 	})
 
 	if err != nil {
 		return nil, errors.Wrap(err, "")
 	}
 
-	opts.Repository = opts.Name
+	runOpts.Repository = runOpts.Name
 
-	return d.RunWithOptions(opts, hcOpts...)
+	return d.RunWithOptions(runOpts, hcOpts...)
 }
 
+// BuildAndRunWithOptions builds and starts a docker container.
+// Optional modifier functions can be passed in order to change the hostconfig values not covered in RunOptions
+func (d *Pool) BuildAndRunWithOptions(dockerfilePath string, opts *RunOptions, hcOpts ...func(*dc.HostConfig)) (*Resource, error) {
+	// Set the Dockerfile folder as build context
+	dir, file := filepath.Split(dockerfilePath)
+	buildOpts := BuildOptions{Dockerfile:file, ContextDir:dir}
+	return d.BuildAndRunWithBuildOptions(&buildOpts, opts, hcOpts...)
+}
+
+
 // BuildAndRun builds and starts a docker container
-func (d *Pool) BuildAndRun(name, dockerfilePath, contextPath string, env []string) (*Resource, error) {
-	return d.BuildAndRunWithOptions(dockerfilePath, contextPath, &RunOptions{Name: name, Env: env})
+func (d *Pool) BuildAndRun(name, dockerfilePath string, env []string) (*Resource, error) {
+	return d.BuildAndRunWithOptions(dockerfilePath, &RunOptions{Name: name, Env: env})
 }
 
 // RunWithOptions starts a docker container.

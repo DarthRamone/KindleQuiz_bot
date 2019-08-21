@@ -2,7 +2,7 @@ package kindle_quiz_bot
 
 import (
 	"fmt"
-	"github.com/DarthRamone/gtranslate"
+	"github.com/bregydoc/gtranslate"
 	"io"
 	"log"
 	"net/http"
