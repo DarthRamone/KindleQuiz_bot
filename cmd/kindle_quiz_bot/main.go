@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -11,10 +12,12 @@ import (
 var token = flag.String("token", "", "telegram API bot token")
 
 func main() {
-
 	flag.Parse()
 
-	tgToken := getTgToken()
+	tgToken, err := getTgToken()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	bot, err := quiz.NewQuizTelegramBot(tgToken)
 	if err != nil {
@@ -28,15 +31,15 @@ func main() {
 	defer bot.Stop()
 }
 
-func getTgToken() string {
+func getTgToken() (string, error) {
 	var tgToken = *token
 	if tgToken == "" {
 		tgToken = os.Getenv("TG_TOKEN")
 	}
 
 	if tgToken == "" {
-		log.Fatal("unable get telegram bot api token")
+		return "", fmt.Errorf("Unable get telegram bot api token. Pass token argument to command line, or set TG_TOKEN environment variable.")
 	}
 
-	return tgToken
+	return tgToken, nil
 }

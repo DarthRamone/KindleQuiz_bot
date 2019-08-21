@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	noWordsFound = errors.New("no words found for user")
+	errNoWordsFound = errors.New("no words found for user")
 )
 
 type userState int
@@ -37,8 +37,6 @@ type connectionParams struct {
 func (repo *repository) connect(p connectionParams) error {
 	connStr := fmt.Sprintf("user=%s dbname=%s port=%d sslmode=%s host=%s", p.user, p.dbName, p.port, p.sslMode, p.url)
 
-	log.Printf("DB connection string: %s", connStr)
-
 	var err error
 	repo.db, err = sql.Open("postgres", connStr)
 	if err != nil {
@@ -49,16 +47,22 @@ func (repo *repository) connect(p connectionParams) error {
 }
 
 func (repo *repository) close() {
-	repo.db.Close()
+	if repo.db == nil {
+		return
+	}
+
+	err := repo.db.Close()
+
+	if err != nil {
+		log.Printf("DB close: %v", err)
+	}
 }
 
-func (repo *repository) getUserLanguage(userId int) (*lang, error) {
+func (repo *repository) getUserLanguage(userID int) (*lang, error) {
 	l := lang{}
-	row := repo.db.QueryRow(`
+	err := repo.db.QueryRow(`
 		SELECT * FROM languages 
-		WHERE id=(SELECT current_lang FROM users WHERE id=$1)`, userId)
-
-	err := row.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
+		WHERE id=(SELECT current_lang FROM users WHERE id=$1)`, userID).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 
 	if err != nil {
 		return nil, err
@@ -67,29 +71,29 @@ func (repo *repository) getUserLanguage(userId int) (*lang, error) {
 	return &l, nil
 }
 
-func (repo *repository) updateUserState(userId int, state userState) error {
-	_, err := repo.db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userId)
+func (repo *repository) updateUserState(userID int, state userState) error {
+	_, err := repo.db.Exec("UPDATE users SET current_state=$1 WHERE id=$2", state, userID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (repo *repository) updateUserLang(userId, langId int) error {
-	_, err := repo.db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userId)
+func (repo *repository) updateUserLang(userID, langId int) error {
+	_, err := repo.db.Exec("UPDATE users SET current_lang=$1 WHERE id=$2", langId, userID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (repo *repository) createUser(userId int) (*user, error) {
-	u := user{userId, readyForQuestion}
+func (repo *repository) createUser(userID int) (*user, error) {
+	u := user{userID, readyForQuestion}
 
 	_, err := repo.db.Exec(`
 		INSERT INTO users (id) 
 		VALUES ($1)
-		ON CONFLICT DO NOTHING`, userId)
+		ON CONFLICT DO NOTHING`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,39 +101,38 @@ func (repo *repository) createUser(userId int) (*user, error) {
 	return &u, nil
 }
 
-func (repo *repository) deleteLastWord(userId int) error {
-	_, err := repo.db.Exec("DELETE FROM questions WHERE user_id=$1", userId)
+func (repo *repository) deleteLastWord(userID int) error {
+	_, err := repo.db.Exec("DELETE FROM questions WHERE user_id=$1", userID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (repo *repository) setLastWord(userId int, w word) error {
+func (repo *repository) setLastWord(userID int, w word) error {
 	_, err := repo.db.Exec(`
 		INSERT INTO questions (user_id, word_id) 
 		VALUES ($1, $2) 
 		ON CONFLICT (user_id) 
-		    DO UPDATE SET word_id=$2`, userId, w.id)
+		    DO UPDATE SET word_id=$2`, userID, w.id)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (repo *repository) getLastWord(userId int) (*word, error) {
-	row := repo.db.QueryRow("SELECT word_id FROM questions WHERE user_id=$1", userId)
-	var wordId int
-	err := row.Scan(&wordId)
+func (repo *repository) getLastWord(userID int) (*word, error) {
+	var wordID int
+	err := repo.db.QueryRow("SELECT word_id FROM questions WHERE user_id=$1", userID).Scan(&wordID)
 	if err != nil {
 		return nil, err
 	}
 
-	return repo.getWord(wordId)
+	return repo.getWord(wordID)
 }
 
-func (repo *repository) getRandomWord(userId int) (*word, error) {
-	var wordId int
+func (repo *repository) getRandomWord(userID int) (word *word, err error) {
+	var wordID int
 
 	tx, err := repo.db.Begin()
 
@@ -137,49 +140,52 @@ func (repo *repository) getRandomWord(userId int) (*word, error) {
 		return nil, err
 	}
 
-	row := tx.QueryRow(`
+	defer func() {
+		if err != nil {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				log.Printf("unable to rollback transaction: %v", rollbackErr)
+			}
+		}
+	}()
+
+	err = tx.QueryRow(`
 		SELECT word_id 
 		FROM user_words 
 		WHERE user_id=$1 
-		OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1`, userId)
+		OFFSET floor(random() * (SELECT COUNT(*) FROM words)) LIMIT 1`, userID).Scan(&wordID)
 
-	err = row.Scan(&wordId)
 	if err == sql.ErrNoRows {
-		_ = tx.Rollback()
-		return nil, noWordsFound
+		return nil, errNoWordsFound
 	}
 
 	_, err = tx.Exec(`
 		INSERT INTO questions (user_id, word_id) 
 		VALUES ($1, $2) 
 		ON CONFLICT (user_id) 
-		    DO UPDATE SET word_id=$2`, userId, wordId)
+		    DO UPDATE SET word_id=$2`, userID, wordID)
 
 	if err != nil {
-		_ = tx.Rollback()
 		return nil, err
 	}
 
-	_, err = tx.Exec("UPDATE users SET current_state=$1 WHERE id=$2", waitingAnswer, userId)
+	_, err = tx.Exec("UPDATE users SET current_state=$1 WHERE id=$2", waitingAnswer, userID)
 	if err != nil {
-		_ = tx.Rollback()
 		return nil, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		_ = tx.Rollback()
 		return nil, err
 	}
 
-	return repo.getWord(wordId)
+	return repo.getWord(wordID)
 }
 
-func (repo *repository) getWord(wordId int) (*word, error) {
-	wordRow := repo.db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordId)
-
+func (repo *repository) getWord(wordID int) (*word, error) {
 	w := word{}
-	err := wordRow.Scan(&w.word, &w.stem, &w.langId, &w.id)
+	err := repo.db.QueryRow("SELECT word, stem, lang, id FROM words WHERE id=$1", wordID).Scan(&w.word, &w.stem, &w.langId, &w.id)
+
 	if err != nil {
 		return nil, fmt.Errorf("random word row scan: %v", err.Error())
 	}
@@ -188,10 +194,9 @@ func (repo *repository) getWord(wordId int) (*word, error) {
 }
 
 func (repo *repository) getUser(id int) (*user, error) {
-	userRow := repo.db.QueryRow("SELECT * FROM users WHERE id=$1", id)
 	u := user{}
 	var langId int
-	err := userRow.Scan(&u.id, &langId, &u.currentState)
+	err := repo.db.QueryRow("SELECT * FROM users WHERE id=$1", id).Scan(&u.id, &langId, &u.currentState)
 
 	if err != nil {
 		return nil, err
@@ -201,9 +206,8 @@ func (repo *repository) getUser(id int) (*user, error) {
 }
 
 func (repo *repository) getLang(id int) (*lang, error) {
-	langRow := repo.db.QueryRow("SELECT * FROM languages WHERE id=$1", id)
 	l := lang{}
-	err := langRow.Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
+	err := repo.db.QueryRow("SELECT * FROM languages WHERE id=$1", id).Scan(&l.id, &l.code, &l.englishName, &l.localizedName)
 	if err != nil {
 		return nil, fmt.Errorf("get lang: %v", err.Error())
 	}
@@ -211,14 +215,7 @@ func (repo *repository) getLang(id int) (*lang, error) {
 }
 
 func (repo *repository) getLanguages() ([]lang, error) {
-	row := repo.db.QueryRow("SELECT COUNT(*) FROM languages")
-	var count int
-	err := row.Scan(&count)
-	if err != nil {
-		return nil, err
-	}
-
-	langs := make([]lang, 0, count)
+	langs := make([]lang, 0)
 
 	rows, err := repo.db.Query("SELECT * FROM languages")
 	if err != nil {
@@ -264,7 +261,7 @@ func (repo *repository) persistAnswer(r guessResult) error {
 		return err
 	}
 
-	lang, err := repo.getUserLanguage(r.params.userId)
+	lang, err := repo.getUserLanguage(r.params.userID)
 	if err != nil {
 		//TODO: error handling
 		_ = tx.Rollback()
@@ -273,7 +270,7 @@ func (repo *repository) persistAnswer(r guessResult) error {
 
 	_, err = tx.Exec(`
 		INSERT INTO answers (word_id, user_id, correct, user_lang, guess) 
-		VALUES ($1, $2, $3, $4, $5)`, p.word.id, p.userId, r.correct(), lang.id, p.guess)
+		VALUES ($1, $2, $3, $4, $5)`, p.word.id, p.userID, r.correct(), lang.id, p.guess)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -304,28 +301,36 @@ func (repo *repository) persistAnswer(r guessResult) error {
 	return nil
 }
 
-func (repo *repository) addWordForUser(userId int, word word, lc string) error {
+func (repo *repository) addWordForUser(userID int, word word, lc string) (err error){
 	tx, err := repo.db.Begin()
 	if err != nil {
-		return fmt.Errorf("postgre tx begin: %v\n", err.Error())
+		return fmt.Errorf("postgres tx begin: %v", err.Error())
 	}
+
+	defer func() {
+		if err != nil {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				log.Printf("Unable to rollback tx: %v", rollbackErr)
+			}
+		}
+	}()
 
 	var langId int
 	err = tx.QueryRow(`
 			SELECT current_lang 
 			FROM users
-			WHERE id=$1`, userId).Scan(&langId)
+			WHERE id=$1`, userID).Scan(&langId)
 	if err != nil {
-		_ = tx.Rollback()
 		return err
 	}
 
-	var wordId int
+	var wordID int
 	err = tx.QueryRow(`
 		INSERT INTO words (word, stem, lang)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (word, stem, lang) 
-		    DO UPDATE SET word=$1 RETURNING id`, word.word, word.stem, langId).Scan(&wordId)
+		    DO UPDATE SET word=$1 RETURNING id`, word.word, word.stem, langId).Scan(&wordID)
 
 	if err != nil {
 		log.Printf("insertion word: %v\n", err)
@@ -334,10 +339,9 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		err = tx.QueryRow(`
 			SELECT id
 			FROM words
-			WHERE word=$1 AND stem=$2 AND lang=$3`, word.word, word.stem, word.langId).Scan(&wordId)
+			WHERE word=$1 AND stem=$2 AND lang=$3`, word.word, word.stem, word.langId).Scan(&wordID)
 
 		if err != nil {
-			_ = tx.Rollback()
 			fmt.Printf("add words for user: %v", err)
 			return err
 		}
@@ -347,10 +351,9 @@ func (repo *repository) addWordForUser(userId int, word word, lc string) error {
 		INSERT INTO user_words (user_id, word_id)
 		VALUES ($1, $2)
 		ON CONFLICT (user_id, word_id) 
-		    DO NOTHING`, userId, wordId)
+		    DO NOTHING`, userID, wordID)
 
 	if err != nil {
-		_ = tx.Rollback()
 		return fmt.Errorf("postgre: inserting user_word: %v", err.Error())
 	}
 

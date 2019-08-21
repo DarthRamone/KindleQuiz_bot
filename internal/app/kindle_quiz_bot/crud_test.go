@@ -40,7 +40,7 @@ func TestGetRandomWord(t *testing.T) {
 	}
 
 	_, err = repo.getRandomWord(-1)
-	if err != noWordsFound {
+	if err != errNoWordsFound {
 		t.Fatalf("Words shouldn't be found")
 	}
 
@@ -210,7 +210,7 @@ func TestUpdateUserState(t *testing.T) {
 	}
 }
 
-func TestUpdateUserLan(t *testing.T) {
+func TestUpdateUserLang(t *testing.T) {
 	err := repo.updateUserLang(testUserId, -1)
 	if err == nil {
 		t.Fatalf("User lang shouldn't be updated")

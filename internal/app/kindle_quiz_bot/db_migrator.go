@@ -7,11 +7,11 @@ import (
 )
 
 func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) error {
-	SQLiteDB, err := sql.Open("sqlite3", sqlitePath)
+	db, err := sql.Open("sqlite3", sqlitePath)
 	if err != nil {
 		return fmt.Errorf("db migration: %v", err.Error())
 	}
-	defer SQLiteDB.Close()
+	defer db.Close()
 
 	langs, err := repo.getLanguages()
 	if err != nil {
@@ -22,7 +22,7 @@ func migrateFromKindleSQLite(sqlitePath string, userId int, repo *repository) er
 		langMap[l.code] = l.id
 	}
 
-	rows, err := SQLiteDB.Query("SELECT word, stem, lang FROM WORDS")
+	rows, err := db.Query("SELECT word, stem, lang FROM WORDS")
 	if err != nil {
 		return fmt.Errorf("sqlite: querying words: %v", err.Error())
 	}

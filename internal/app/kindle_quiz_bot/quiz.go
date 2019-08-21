@@ -43,7 +43,7 @@ type guessRequest struct {
 type guessParams struct {
 	word   word
 	guess  string
-	userId int
+	userID int
 }
 
 type guessResult struct {
@@ -89,12 +89,34 @@ func (q *quiz) Close() {
 	close(q.migrationJobs)
 }
 
+func NewQuiz(s MessageSender) Quiz {
+	q := quiz{sender: s}
+
+	err := q.connectToDB()
+	if err != nil {
+		log.Fatalf("db connect: %v", err.Error())
+	}
+
+	q.downloadJobs = make(chan downloadJob, 20)
+	q.migrationJobs = make(chan migrationJob, 20)
+
+	for i := 0; i < maxDownloadJobsCount; i++ {
+		go q.downloadWorker(q.downloadJobs)
+	}
+
+	for i := 0; i < maxMigrationWorkersCount; i++ {
+		go q.migrationWorker(q.migrationJobs)
+	}
+
+	return &q
+}
+
 func (q *quiz) RequestWord(userId int) {
 	log.Println("request word")
 
 	w, err := q.repo.getRandomWord(userId)
 
-	if err == noWordsFound {
+	if err == errNoWordsFound {
 		q.sendMessage(userId, "No words found. Please run /upload and follow instructions")
 		return
 	}
@@ -156,6 +178,7 @@ func (q *quiz) SelectLang(userId int) {
 func (q *quiz) AwaitUpload(userId int) {
 	err := q.repo.updateUserState(userId, awaitingUpload)
 	if err != nil {
+		log.Printf("await upload: %v", err)
 		return //TODO: Error handle
 	}
 
@@ -165,6 +188,7 @@ func (q *quiz) AwaitUpload(userId int) {
 func (q *quiz) CancelOperation(userId int) {
 	user, err := q.repo.getUser(userId)
 	if err != nil {
+		log.Printf("await upload: %v", err)
 		return //TODO: error handle
 	}
 
@@ -175,6 +199,7 @@ func (q *quiz) CancelOperation(userId int) {
 
 	err = q.repo.updateUserState(userId, readyForQuestion)
 	if err != nil {
+		log.Printf("await upload: %v", err)
 		return //TODO: Error handle
 	}
 
@@ -184,6 +209,7 @@ func (q *quiz) CancelOperation(userId int) {
 func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 	u, err := q.repo.getUser(userId)
 	if err != nil {
+		log.Printf("await upload: %v", err)
 		return //TODO: error handle
 	}
 
@@ -203,28 +229,6 @@ func (q *quiz) ProcessMessage(userId int, text, documentUrl string) {
 	}
 }
 
-func NewQuiz(s MessageSender) Quiz {
-	q := quiz{sender: s}
-
-	err := q.connectToDB()
-	if err != nil {
-		log.Fatalf("db connect: %v", err.Error())
-	}
-
-	q.downloadJobs = make(chan downloadJob, 20)
-	q.migrationJobs = make(chan migrationJob, 20)
-
-	for i := 0; i < maxDownloadJobsCount; i++ {
-		go q.downloadWorker(q.downloadJobs)
-	}
-
-	for i := 0; i < maxMigrationWorkersCount; i++ {
-		go q.migrationWorker(q.migrationJobs)
-	}
-
-	return &q
-}
-
 func (q *quiz) guessWord(u user, guess string) {
 	word, err := q.repo.getLastWord(u.id)
 	if err != nil {
@@ -235,6 +239,7 @@ func (q *quiz) guessWord(u user, guess string) {
 	lang, err := q.repo.getUserLanguage(u.id)
 	if err != nil {
 		q.sendMessage(u.id, err.Error())
+		return
 	}
 
 	translated, err := q.translateWord(*word, lang)
@@ -246,6 +251,7 @@ func (q *quiz) guessWord(u user, guess string) {
 	err = q.repo.deleteLastWord(u.id)
 	if err != nil {
 		q.sendMessage(u.id, err.Error())
+		return
 	}
 
 	p := guessParams{*word, guess, u.id}
@@ -348,9 +354,9 @@ func (q *quiz) connectToDB() error {
 
 func (q *quiz) tellResult(r guessResult) {
 	if r.correct() {
-		q.sendMessage(r.params.userId, "Your answer is correct")
+		q.sendMessage(r.params.userID, "Your answer is correct")
 	} else {
-		q.sendMessage(r.params.userId, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
+		q.sendMessage(r.params.userID, fmt.Sprintf("Your answer is incorrect. Correct answer: %s\n", r.translation))
 	}
 }
 
@@ -438,7 +444,7 @@ func downloadFile(filepath string, url string) (err error) {
 	}
 
 	defer func() {
-		err = out.Close()
+		_ = out.Close()
 	}()
 
 	// Write the body to file
